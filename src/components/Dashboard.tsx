@@ -480,6 +480,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           onSaveSettings={handleSaveSettings}
           onSaveDatabase={handleSaveDatabase}
           onDeleteDatabase={handleDeleteDatabase}
+          onDatabasesChanged={async () => {
+            const currentSettings = getSettings();
+            if (currentSettings.useBackend && currentSettings.backendUrl) {
+              const freshDbs = await loadDatabasesFromBackend(currentSettings.backendUrl);
+              setDatabases(freshDbs);
+            } else {
+              setDatabases(getDatabases());
+            }
+          }}
           onClose={() => setShowSettings(false)}
         />
       )}

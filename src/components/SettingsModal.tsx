@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AppSettings, StandbyDatabase } from '../types';
-import { generateId, getPassword, setPassword, testConnectionViaBackend, getSettings, changePasswordViaBackend } from '../store';
-import { X, Plus, Trash2, Settings, Database, Shield, Clock, Save, Server, Edit2, Wifi, CheckCircle, XCircle, Loader2, Globe, HardDrive, BarChart3 } from 'lucide-react';
+import { generateId, getPassword, setPassword, testConnectionViaBackend, getSettings, changePasswordViaBackend, batchImportDatabases, batchDeleteDatabases } from '../store';
+import { X, Plus, Trash2, Settings, Database, Shield, Clock, Save, Server, Edit2, Wifi, CheckCircle, XCircle, Loader2, Globe, HardDrive, BarChart3, FileUp, Download, AlertCircle } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -9,6 +9,7 @@ interface SettingsModalProps {
   onSaveSettings: (settings: AppSettings) => void;
   onSaveDatabase: (db: StandbyDatabase) => void;
   onDeleteDatabase: (id: string) => void;
+  onDatabasesChanged: () => void;
   onClose: () => void;
 }
 
@@ -18,6 +19,7 @@ export default function SettingsModal({
   onSaveSettings,
   onSaveDatabase,
   onDeleteDatabase,
+  onDatabasesChanged,
   onClose,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<'databases' | 'collection' | 'backend' | 'security'>('databases');
@@ -47,6 +49,17 @@ export default function SettingsModal({
 
   // History stats
   const [historyStats, setHistoryStats] = useState<any>(null);
+
+  // Batch import state
+  const [showBatchImport, setShowBatchImport] = useState(false);
+  const [batchText, setBatchText] = useState('');
+  const [batchErrors, setBatchErrors] = useState<string[]>([]);
+  const [batchImporting, setBatchImporting] = useState(false);
+  const [batchResult, setBatchResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Batch delete state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   const tabs = [
     { key: 'databases' as const, label: '备库管理', icon: Database },
@@ -96,6 +109,159 @@ export default function SettingsModal({
       createdAt: Date.now(),
     });
     setConnectionResult(null);
+  };
+
+  // ---- Batch import logic ----
+
+  const parseBatchText = (text: string) => {
+    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length === 0) return [];
+
+    // 检测分隔符
+    const firstLine = lines[0];
+    const sep = firstLine.includes('\t') ? '\t' : ',';
+
+    // 检测第一行是否标题行 (含中文或关键字)
+    const headerKeywords = /名称|主机|端口|服务名|用户名|密码|name|host|port|service|user|password/i;
+    const dataLines = headerKeywords.test(firstLine) ? lines.slice(1) : lines;
+
+    const results: Array<{
+      name: string; host: string; port: number; serviceName: string; username: string; password: string;
+      errors: string[];
+    }> = [];
+
+    for (let i = 0; i < dataLines.length; i++) {
+      const cols = dataLines[i].split(sep).map(c => c.trim());
+      const entry = {
+        name: cols[0] || '',
+        host: cols[1] || '',
+        port: parseInt(cols[2]) || 1521,
+        serviceName: cols[3] || '',
+        username: cols[4] || '',
+        password: cols[5] || '',
+        errors: [] as string[],
+      };
+      if (!entry.name) entry.errors.push('名称缺失');
+      if (!entry.host) entry.errors.push('主机缺失');
+      if (!entry.serviceName) entry.errors.push('服务名缺失');
+      if (!entry.username) entry.errors.push('用户名缺失');
+      results.push(entry);
+    }
+
+    return results;
+  };
+
+  const previewData = parseBatchText(batchText);
+
+  const handleBatchImport = async () => {
+    if (previewData.length === 0) {
+      setBatchErrors(['请输入至少一行数据']);
+      return;
+    }
+
+    const invalid = previewData.filter(d => d.errors.length > 0);
+    if (invalid.length > 0) {
+      setBatchErrors([`${invalid.length} 行存在必填字段缺失，请修正后再导入`]);
+      return;
+    }
+
+    setBatchImporting(true);
+    setBatchErrors([]);
+    setBatchResult(null);
+
+    const currentSettings = getSettings();
+    if (currentSettings.useBackend && currentSettings.backendUrl) {
+      const result = await batchImportDatabases(currentSettings.backendUrl, previewData.map(d => ({
+        name: d.name,
+        host: d.host,
+        port: d.port,
+        serviceName: d.serviceName,
+        username: d.username,
+        password: d.password,
+      })));
+      if (result.success) {
+        setBatchResult({ success: true, message: `成功导入 ${result.imported} 台备库${result.skipped ? `，${result.skipped} 台跳过` : ''}` });
+        setBatchText('');
+        onDatabasesChanged();
+      } else {
+        setBatchResult({ success: false, message: result.message || '导入失败' });
+      }
+    } else {
+      // Local mode: save directly to localStorage
+      let imported = 0;
+      for (const d of previewData) {
+        const db: StandbyDatabase = {
+          id: generateId(),
+          name: d.name,
+          host: d.host,
+          port: d.port,
+          serviceName: d.serviceName,
+          username: d.username,
+          password: d.password,
+          enabled: true,
+          createdAt: Date.now(),
+        };
+        const { saveDatabaseLocal } = await import('../store');
+        saveDatabaseLocal(db);
+        imported++;
+      }
+      setBatchResult({ success: true, message: `成功导入 ${imported} 台备库 (本地模式)` });
+      setBatchText('');
+    }
+
+    setBatchImporting(false);
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const names = databases.filter(d => selectedIds.has(d.id)).map(d => d.name).join(', ');
+    if (!confirm(`确认删除以下 ${selectedIds.size} 台备库及关联的所有监控数据？\n\n${names}\n\n此操作不可撤销！`)) return;
+
+    setBatchDeleting(true);
+    const currentSettings = getSettings();
+    if (currentSettings.useBackend && currentSettings.backendUrl) {
+      const result = await batchDeleteDatabases(currentSettings.backendUrl, Array.from(selectedIds));
+      if (result.success) {
+        setSelectedIds(new Set());
+        onDatabasesChanged();
+      } else {
+        alert(result.message || '删除失败');
+      }
+    } else {
+      // Local mode
+      for (const id of selectedIds) {
+        const { deleteDatabaseLocal } = await import('../store');
+        deleteDatabaseLocal(id);
+      }
+      setSelectedIds(new Set());
+      onDatabasesChanged();
+    }
+    setBatchDeleting(false);
+  };
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === databases.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(databases.map(d => d.id)));
+    }
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = '﻿名称,主机,端口,服务名,用户名,密码\nORCL_DR1,10.0.1.30,1521,ORCL,monitor,password1\nORCL_DR2,10.0.1.31,1521,ORCL,monitor,password2';
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ADG_备库批量导入模板.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleTestConnection = async () => {
@@ -311,18 +477,166 @@ export default function SettingsModal({
                     </span>
                   )}
                 </p>
-                <button
-                  onClick={handleNewDb}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-cyan-400 transition-all hover:scale-105"
-                  style={{
-                    background: 'rgba(0,212,255,0.1)',
-                    border: '1px solid rgba(0,212,255,0.2)',
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                  添加备库
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setShowBatchImport(!showBatchImport); setBatchResult(null); setBatchErrors([]); }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105"
+                    style={{
+                      background: 'rgba(123,97,255,0.1)',
+                      border: '1px solid rgba(123,97,255,0.2)',
+                      color: '#a78bfa',
+                    }}
+                  >
+                    <FileUp className="w-4 h-4" />
+                    批量导入
+                  </button>
+                  <button
+                    onClick={handleNewDb}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-cyan-400 transition-all hover:scale-105"
+                    style={{
+                      background: 'rgba(0,212,255,0.1)',
+                      border: '1px solid rgba(0,212,255,0.2)',
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    添加备库
+                  </button>
+                </div>
               </div>
+
+              {/* Batch import panel */}
+              {showBatchImport && (
+                <div className="rounded-xl p-4 mb-4" style={{
+                  background: 'rgba(123,97,255,0.05)',
+                  border: '1px solid rgba(123,97,255,0.15)',
+                }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-bold" style={{ color: '#a78bfa' }}>
+                      批量导入备库
+                    </h4>
+                    <button
+                      onClick={downloadTemplate}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all hover:bg-white/5"
+                      style={{
+                        background: 'rgba(123,97,255,0.1)',
+                        border: '1px solid rgba(123,97,255,0.15)',
+                        color: '#a78bfa',
+                      }}
+                    >
+                      <Download className="w-3 h-3" />
+                      下载 CSV 模板
+                    </button>
+                  </div>
+
+                  <textarea
+                    value={batchText}
+                    onChange={e => { setBatchText(e.target.value); setBatchErrors([]); setBatchResult(null); }}
+                    placeholder={'从 Excel 复制数据后直接粘贴到此处 (Tab 自动分隔)\n\n示例:\nORCL_DR1\t10.0.1.30\t1521\tORCL\tmonitor\tpassword1\nORCL_DR2\t10.0.1.31\t1521\tORCL\tmonitor\tpassword2\n\n第一行如果是标题行会自动跳过'}
+                    rows={8}
+                    className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none font-mono resize-y"
+                    style={{
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(123,97,255,0.15)',
+                    }}
+                  />
+
+                  {/* Preview table */}
+                  {previewData.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-400 mb-2">预览 ({previewData.length} 条)</p>
+                      <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid rgba(123,97,255,0.08)' }}>
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr style={{ background: 'rgba(123,97,255,0.08)' }}>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">#</th>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">名称</th>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">主机</th>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">端口</th>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">服务名</th>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">用户名</th>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">密码</th>
+                              <th className="px-2 py-1.5 text-left text-gray-400 font-medium">状态</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewData.map((d, i) => (
+                              <tr key={i} className="border-t" style={{ borderColor: 'rgba(123,97,255,0.06)' }}>
+                                <td className="px-2 py-1.5 text-gray-500">{i + 1}</td>
+                                <td className="px-2 py-1.5 text-white">{d.name}</td>
+                                <td className="px-2 py-1.5 text-white font-mono">{d.host}</td>
+                                <td className="px-2 py-1.5 text-white font-mono">{d.port}</td>
+                                <td className="px-2 py-1.5 text-white">{d.serviceName}</td>
+                                <td className="px-2 py-1.5 text-white">{d.username}</td>
+                                <td className="px-2 py-1.5 text-gray-500">{d.password ? '****' : '-'}</td>
+                                <td className="px-2 py-1.5">
+                                  {d.errors.length === 0 ? (
+                                    <span className="text-green-400 text-xs">✓</span>
+                                  ) : (
+                                    <span className="text-red-400 text-xs">{d.errors.join(', ')}</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error / result messages */}
+                  {batchErrors.length > 0 && (
+                    <div className="mt-3 px-3 py-2 rounded-lg text-xs flex items-start gap-2 bg-red-500/10 border border-red-500/20 text-red-400">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <div>
+                        {batchErrors.map((e, i) => <p key={i}>{e}</p>)}
+                      </div>
+                    </div>
+                  )}
+
+                  {batchResult && (
+                    <div className={`mt-3 px-3 py-2 rounded-lg text-xs flex items-start gap-2 ${
+                      batchResult.success
+                        ? 'bg-green-500/10 border border-green-500/20 text-green-400'
+                        : 'bg-red-500/10 border border-red-500/20 text-red-400'
+                    }`}>
+                      {batchResult.success ? (
+                        <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      )}
+                      <p>{batchResult.message}</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mt-3">
+                    <p className="text-[10px] text-gray-600">
+                      支持 Tab / CSV 分隔，可从 Excel 直接复制粘贴
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setShowBatchImport(false); setBatchText(''); setBatchErrors([]); setBatchResult(null); }}
+                        className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white transition-all"
+                        style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleBatchImport}
+                        disabled={batchImporting || previewData.length === 0}
+                        className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                        style={{ background: 'linear-gradient(135deg, #7c3aed, #6366f1)' }}
+                      >
+                        {batchImporting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <FileUp className="w-4 h-4" />
+                        )}
+                        {batchImporting ? '导入中...' : `确认导入 ${previewData.length} 台备库`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Edit form */}
               {editingDb && (
@@ -430,12 +744,57 @@ export default function SettingsModal({
               )}
 
               {/* Database list */}
+              {databases.length > 0 && (
+                <div className="flex items-center justify-between mb-2">
+                  <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === databases.length && databases.length > 0}
+                      onChange={toggleSelectAll}
+                      className="accent-cyan-500 w-3.5 h-3.5"
+                    />
+                    全选 ({selectedIds.size}/{databases.length})
+                  </label>
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={handleBatchDelete}
+                      disabled={batchDeleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 disabled:opacity-50"
+                      style={{
+                        background: 'rgba(239,68,68,0.1)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        color: '#f87171',
+                      }}
+                    >
+                      {batchDeleting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                      {batchDeleting ? '删除中...' : `删除选中 (${selectedIds.size})`}
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 {databases.map(db => (
-                  <div key={db.id} className="flex items-center justify-between rounded-lg p-3 group hover:bg-white/5 transition-all"
-                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.06)' }}>
+                  <div key={db.id}
+                    className={`flex items-center justify-between rounded-lg p-3 group transition-all ${
+                      selectedIds.has(db.id) ? 'bg-cyan-400/5' : 'hover:bg-white/5'
+                    }`}
+                    style={{
+                      background: selectedIds.has(db.id) ? 'rgba(0,212,255,0.05)' : 'rgba(0,0,0,0.2)',
+                      border: selectedIds.has(db.id) ? '1px solid rgba(0,212,255,0.15)' : '1px solid rgba(0,212,255,0.06)',
+                    }}
+                  >
                     <div className="flex items-center gap-3">
-                      <Server className={`w-4 h-4 ${db.enabled ? 'text-cyan-400' : 'text-gray-600'}`} />
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(db.id)}
+                        onChange={() => toggleSelect(db.id)}
+                        className="accent-cyan-500 w-3.5 h-3.5 flex-shrink-0"
+                      />
+                      <Server className={`w-4 h-4 flex-shrink-0 ${db.enabled ? 'text-cyan-400' : 'text-gray-600'}`} />
                       <div>
                         <div className="text-sm font-semibold text-white">{db.name}</div>
                         <div className="text-xs text-gray-500 font-mono">{db.host}:{db.port}/{db.serviceName} · {db.username}</div>

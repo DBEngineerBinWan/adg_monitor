@@ -308,6 +308,48 @@ export async function deleteDatabaseFromBackend(backendUrl: string, id: string):
   }
 }
 
+// Batch import databases to backend
+export async function batchImportDatabases(
+  backendUrl: string,
+  databases: Array<{
+    id?: string;
+    name: string;
+    host: string;
+    port: number;
+    serviceName: string;
+    username: string;
+    password: string;
+  }>
+): Promise<{ success: boolean; imported?: number; skipped?: number; errors?: Array<{row: number; name: string; error: string}>; message?: string }> {
+  try {
+    const response = await fetch(`${backendUrl}/api/databases/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ databases }),
+    });
+    return await response.json();
+  } catch (err: any) {
+    return { success: false, message: `批量导入失败: ${err.message}` };
+  }
+}
+
+// Batch delete databases from backend
+export async function batchDeleteDatabases(
+  backendUrl: string,
+  ids: string[]
+): Promise<{ success: boolean; deleted?: number; message?: string }> {
+  try {
+    const response = await fetch(`${backendUrl}/api/databases/batch-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    return await response.json();
+  } catch (err: any) {
+    return { success: false, message: `批量删除失败: ${err.message}` };
+  }
+}
+
 // Load statuses from backend
 export async function loadStatusesFromBackend(backendUrl: string): Promise<Record<string, StandbyStatus>> {
   try {

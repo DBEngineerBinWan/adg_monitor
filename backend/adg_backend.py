@@ -1410,6 +1410,110 @@ def delete_database(db_id):
         return jsonify({'success': False, 'message': str(e)})
 
 
+@app.route('/api/databases/batch', methods=['POST'])
+def batch_import():
+    """批量导入备库配置"""
+    try:
+        data = request.get_json()
+        databases = data.get('databases', [])
+        if not databases:
+            return jsonify({'success': False, 'message': '没有要导入的数据'}), 400
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        conn = get_local_connection()
+        cursor = conn.cursor()
+
+        for i, db in enumerate(databases):
+            db_id = db.get('id', '').strip()
+            name = db.get('name', '').strip()
+            host = db.get('host', '').strip()
+            port = int(db.get('port', 1521))
+            service_name = db.get('serviceName', '').strip()
+            username = db.get('username', '').strip()
+            password = db.get('password', '')
+
+            # 校验必填字段
+            if not all([name, host, service_name, username]):
+                errors.append({'row': i + 1, 'name': name or '(空)', 'error': '缺少必填字段'})
+                skipped += 1
+                continue
+
+            # 自动生成ID
+            if not db_id:
+                import hashlib
+                db_id = hashlib.md5(f"{name}{host}{service_name}".encode()).hexdigest()[:32]
+
+            # 加密密码
+            if password and not password.startswith('FERN:'):
+                password = encrypt_standby_password(password)
+
+            try:
+                cursor.execute("""
+                    MERGE INTO ADG_STANDBY_CONFIG t
+                    USING (SELECT :db_id AS ID FROM DUAL) s
+                    ON (t.ID = s.ID)
+                    WHEN MATCHED THEN UPDATE SET
+                        NAME = :name, HOST = :host, PORT = :port, SERVICE_NAME = :sname,
+                        USERNAME = :uname, PASSWORD = :pwd, ENABLED = :enabled, UPDATED_AT = SYSTIMESTAMP
+                    WHEN NOT MATCHED THEN INSERT (
+                        ID, NAME, HOST, PORT, SERVICE_NAME, USERNAME, PASSWORD, ENABLED
+                    ) VALUES (:db_id, :name, :host, :port, :sname, :uname, :pwd, :enabled)
+                """, {'db_id': db_id, 'name': name, 'host': host, 'port': port,
+                      'sname': service_name, 'uname': username, 'pwd': password, 'enabled': 1})
+                imported += 1
+            except Exception as e:
+                errors.append({'row': i + 1, 'name': name, 'error': str(e)})
+                skipped += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'导入完成: {imported} 成功, {skipped} 跳过',
+            'imported': imported,
+            'skipped': skipped,
+            'errors': errors,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/databases/batch-delete', methods=['POST'])
+def batch_delete():
+    """批量删除备库配置及关联数据"""
+    try:
+        data = request.get_json()
+        ids = data.get('ids', [])
+        if not ids:
+            return jsonify({'success': False, 'message': '没有要删除的备库'}), 400
+
+        conn = get_local_connection()
+        cursor = conn.cursor()
+
+        deleted = 0
+        for db_id in ids:
+            try:
+                cursor.execute("DELETE FROM ADG_MONITOR_HISTORY WHERE DB_ID = :1", [db_id])
+                cursor.execute("DELETE FROM ADG_MONITOR_STATUS WHERE DB_ID = :1", [db_id])
+                cursor.execute("DELETE FROM ADG_STANDBY_CONFIG WHERE ID = :1", [db_id])
+                deleted += 1
+            except Exception as e:
+                print(f"[WARN] 批量删除 {db_id} 失败: {e}")
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'message': f'已删除 {deleted} 台备库', 'deleted': deleted})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
 # ---------- 监控数据查询 ----------
 
 @app.route('/api/query', methods=['POST'])
