@@ -1,0 +1,21 @@
+# Oracle DataGuard ADG 监控平台 - Python后端依赖
+#
+# 安装方式:
+#   pip install -r requirements.txt
+#
+# 离线安装 (先在有网的机器下载):
+#   pip download -r requirements.txt -d ./packages
+#   # 复制packages目录到离线服务器后:
+#   pip install --no-index --find-links=./packages -r requirements.txt
+
+flask==3.1.0
+flask-cors==5.0.1
+
+# Oracle数据库驱动 (选择一个):
+# 推荐: oracledb (支持thin模式，Oracle 12c+无需Instant Client)
+oracledb==2.5.1
+
+# 如果连接Oracle 11g，需要额外安装Oracle Instant Client
+# 并在启动时指定: --instant-client /path/to/instantclient
+# 或者使用 cx_Oracle:
+# cx_Oracle==8.3.0

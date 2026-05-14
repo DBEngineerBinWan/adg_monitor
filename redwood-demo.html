@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle DataGuard 监控 — RedwoodJS 风格 Demo</title>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --border: #e8e2d8;
+    --text: #3d3428;
+    --text-muted: #8b7e6e;
+    --accent: #bf5b3a;
+    --accent-light: #faf0e8;
+    --green: #5b8c5a;
+    --green-bg: #edf6ed;
+    --yellow: #b8860b;
+    --yellow-bg: #fef9ed;
+    --red: #c4554d;
+    --red-bg: #fdf0ef;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Header */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 17px;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .logo svg { width: 28px; height: 28px; stroke: var(--accent); }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .header-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .header-stat .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .header-stat .dot.green { background: var(--green); }
+  .header-stat .dot.yellow { background: var(--yellow); }
+  .header-stat .dot.red { background: var(--red); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    transition: all .15s;
+  }
+
+  .btn:hover { background: #f5f0e8; }
+  .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn-primary:hover { background: #a44a2e; }
+
+  .btn-tab {
+    border: none;
+    background: none;
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+  }
+  .btn-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  main { padding: 32px 40px; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .filter-group {
+    display: flex;
+    gap: 4px;
+  }
+
+  .filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all .15s;
+  }
+
+  .filter-btn:hover { background: #f5f0e8; }
+  .filter-btn .count { font-size: 18px; font-weight: 700; }
+  .filter-btn.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+  .search-box {
+    position: relative;
+    width: 260px;
+  }
+
+  .search-box input {
+    width: 100%;
+    padding: 9px 12px 9px 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s;
+  }
+
+  .search-box input:focus { border-color: var(--accent); }
+  .search-box input::placeholder { color: #c4b8a8; }
+  .search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; stroke: #c4b8a8; }
+
+  /* Cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .card.red::before { background: var(--red); }
+  .card.yellow::before { background: var(--yellow); }
+  .card.green::before { background: var(--green); }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 12px;
+  }
+
+  .card-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+
+  .card-host {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .status-badge.green  { background: var(--green-bg); color: var(--green); }
+  .status-badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .status-badge.red    { background: var(--red-bg); color: var(--red); }
+
+  .card-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  .metric-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    letter-spacing: -0.5px;
+  }
+
+  .metric-value.green  { color: var(--green); }
+  .metric-value.yellow { color: var(--yellow); }
+  .metric-value.red    { color: var(--red); }
+
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-role {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .card-time {
+    font-size: 11px;
+    color: #c4b8a8;
+  }
+
+  .card-error {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--red-bg);
+    font-size: 12px;
+    color: var(--red);
+    font-weight: 500;
+  }
+
+  /* Table */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    text-align: left;
+    padding: 14px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    background: #faf8f5;
+  }
+
+  td {
+    padding: 12px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid #f5f0e8;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: #fdfaf6; cursor: pointer; }
+
+  /* Section title */
+  .section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  .section-title::before {
+    content: '';
+    width: 3px;
+    height: 16px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 64px 0;
+    color: var(--text-muted);
+  }
+
+  .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.3; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="12" cy="5" rx="9" ry="3"/>
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+    </svg>
+    Oracle DataGuard 监控
+  </div>
+  <div class="header-actions">
+    <div class="header-stat"><span class="dot green"></span> 正常 4</div>
+    <div class="header-stat"><span class="dot yellow"></span> 警告 4</div>
+    <div class="header-stat"><span class="dot red"></span> 异常 2</div>
+    <button class="btn btn-primary">采集 & 刷新</button>
+  </div>
+</header>
+
+<main>
+  <!-- Tabs -->
+  <div style="margin-bottom:24px;border-bottom:1px solid var(--border)">
+    <button class="btn-tab active">卡片概览</button>
+    <button class="btn-tab">延时表格</button>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="filter-group">
+      <button class="filter-btn"><span class="count" style="color:var(--red)">2</span> 异常</button>
+      <button class="filter-btn active"><span class="count" style="color:var(--yellow)">4</span> 警告</button>
+      <button class="filter-btn"><span class="count" style="color:var(--green)">4</span> 正常</button>
+    </div>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" placeholder="搜索备库名称或 IP..." />
+    </div>
+  </div>
+
+  <!-- Cards -->
+  <div class="section-title">DataGuard 数据库状态概览</div>
+  <div class="card-grid">
+    <!-- Red cards -->
+    <div class="card red">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl8</div>
+          <div class="card-host">192.168.85.129:1521</div>
+        </div>
+        <span class="status-badge red">异常</span>
+      </div>
+      <div class="card-error">用户名/密码错误 (ORA-01017)</div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value red">0 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY</span>
+        <span class="card-time">23:38:30</span>
+      </div>
+    </div>
+
+    <div class="card red">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl9</div>
+          <div class="card-host">192.168.85.130:1521</div>
+        </div>
+        <span class="status-badge red">异常</span>
+      </div>
+      <div class="card-error">用户名/密码错误 (ORA-01017)</div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value red">0 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY</span>
+        <span class="card-time">23:38:31</span>
+      </div>
+    </div>
+
+    <!-- Yellow cards -->
+    <div class="card yellow">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcldgb</div>
+          <div class="card-host">192.168.85.130:1521</div>
+        </div>
+        <span class="status-badge yellow">警告</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value yellow">12 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:18</span>
+      </div>
+    </div>
+
+    <div class="card yellow">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl3</div>
+          <div class="card-host">192.168.85.130:1521</div>
+        </div>
+        <span class="status-badge yellow">警告</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value yellow">8 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:17</span>
+      </div>
+    </div>
+
+    <div class="card yellow">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl5</div>
+          <div class="card-host">192.168.85.130:1521</div>
+        </div>
+        <span class="status-badge yellow">警告</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value yellow">5 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:18</span>
+      </div>
+    </div>
+
+    <div class="card yellow">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl7</div>
+          <div class="card-host">192.168.85.130:1521</div>
+        </div>
+        <span class="status-badge yellow">警告</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value yellow">3 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:18</span>
+      </div>
+    </div>
+
+    <!-- Green cards -->
+    <div class="card green">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcldg</div>
+          <div class="card-host">192.168.85.129:1521</div>
+        </div>
+        <span class="status-badge green">正常</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value green">0 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:14</span>
+      </div>
+    </div>
+
+    <div class="card green">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl2</div>
+          <div class="card-host">192.168.85.129:1521</div>
+        </div>
+        <span class="status-badge green">正常</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value green">0 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:15</span>
+      </div>
+    </div>
+
+    <div class="card green">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl4</div>
+          <div class="card-host">192.168.85.129:1521</div>
+        </div>
+        <span class="status-badge green">正常</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value green">0 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:17</span>
+      </div>
+    </div>
+
+    <div class="card green">
+      <div class="card-header">
+        <div>
+          <div class="card-name">orcl6</div>
+          <div class="card-host">192.168.85.129:1521</div>
+        </div>
+        <span class="status-badge green">正常</span>
+      </div>
+      <div class="card-metrics">
+        <div>
+          <div class="metric-label">应用延时</div>
+          <div class="metric-value green">0 秒</div>
+        </div>
+        <div>
+          <div class="metric-label">传输延时</div>
+          <div class="metric-value">0 秒</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-role">PHYSICAL STANDBY · READ ONLY WITH APPLY</span>
+        <span class="card-time">07:38:15</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table view (hidden by default, shown when tab clicked) -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>DB名称</th><th>主机地址</th><th>角色</th><th>MRP状态</th><th>应用延时</th><th>传输延时</th><th>健康</th><th>异常原因</th><th>最后检查</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="font-weight:700">orcl8</td><td style="font-family:monospace;color:var(--text-muted)">192.168.85.129:1521</td><td><span class="status-badge green">STANDBY</span></td><td>MRP未运行</td><td style="font-family:monospace;color:var(--red)">0 秒</td><td style="font-family:monospace">0 秒</td><td><span class="status-badge red">异常</span></td><td style="color:var(--red);font-size:12px">ORA-01017</td><td style="color:var(--text-muted);font-size:12px">23:38:30</td></tr>
+        <tr><td style="font-weight:700">orcl9</td><td style="font-family:monospace;color:var(--text-muted)">192.168.85.130:1521</td><td><span class="status-badge green">STANDBY</span></td><td>MRP未运行</td><td style="font-family:monospace;color:var(--red)">0 秒</td><td style="font-family:monospace">0 秒</td><td><span class="status-badge red">异常</span></td><td style="color:var(--red);font-size:12px">ORA-01017</td><td style="color:var(--text-muted);font-size:12px">23:38:31</td></tr>
+        <tr><td style="font-weight:700">orcldgb</td><td style="font-family:monospace;color:var(--text-muted)">192.168.85.130:1521</td><td><span class="status-badge green">STANDBY</span></td><td>等待日志</td><td style="font-family:monospace;color:var(--yellow)">12 秒</td><td style="font-family:monospace">0 秒</td><td><span class="status-badge yellow">警告</span></td><td style="color:var(--text-muted)">-</td><td style="color:var(--text-muted);font-size:12px">07:38:18</td></tr>
+        <tr><td style="font-weight:700">orcldg</td><td style="font-family:monospace;color:var(--text-muted)">192.168.85.129:1521</td><td><span class="status-badge green">STANDBY</span></td><td>正在应用日志</td><td style="font-family:monospace;color:var(--green)">0 秒</td><td style="font-family:monospace">0 秒</td><td><span class="status-badge green">正常</span></td><td style="color:var(--text-muted)">-</td><td style="color:var(--text-muted);font-size:12px">07:38:14</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+</body>
+</html>
