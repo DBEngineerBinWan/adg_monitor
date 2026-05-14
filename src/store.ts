@@ -387,7 +387,7 @@ export async function loadHistoryFromBackend(
   hours: number = 24
 ): Promise<HistoryRecord[]> {
   try {
-    let url = `${backendUrl}/api/history?hours=${hours}&limit=5000`;
+    let url = `${backendUrl}/api/history?hours=${hours}&limit=2000`;
     if (dbId) url += `&db_id=${dbId}`;
     const response = await fetch(url);
     const data = await response.json();

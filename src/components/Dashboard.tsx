@@ -81,7 +81,29 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     };
   }, [onLogout]);
 
-  // Collection function - backend persistent or local simulation
+  // Guard against concurrent API calls from this tab
+  const fetchingRef = useRef(false);
+
+  // Auto-refresh: only load persisted data (don't trigger backend collection)
+  const refreshData = useCallback(async () => {
+    const currentSettings = getSettings();
+    if (!currentSettings.useBackend || !currentSettings.backendUrl) return;
+    if (fetchingRef.current) return;
+
+    fetchingRef.current = true;
+    try {
+      const [sts, hist] = await Promise.all([
+        loadStatusesFromBackend(currentSettings.backendUrl),
+        loadHistoryFromBackend(currentSettings.backendUrl),
+      ]);
+      setStatuses(sts);
+      setAllHistory(hist);
+    } catch {} finally {
+      fetchingRef.current = false;
+    }
+  }, []);
+
+  // Manual collection: trigger backend collection + reload
   const collectData = useCallback(async () => {
     const dbs = getDatabases();
     const currentSettings = getSettings();
@@ -91,9 +113,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     if (currentSettings.useBackend && currentSettings.backendUrl) {
       // ===== Backend persistent mode =====
-      // Trigger backend to collect (now parallel, much faster)
       await triggerBackendCollect(currentSettings.backendUrl);
-      // Load statuses and history in parallel (databases list rarely changes, skip reload)
+      // Load statuses and history in parallel
       const [sts, hist] = await Promise.all([
         loadStatusesFromBackend(currentSettings.backendUrl),
         loadHistoryFromBackend(currentSettings.backendUrl),
@@ -123,7 +144,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setTimeout(() => setCollecting(false), 500);
   }, []);
 
-  // Auto collection timer
+  // Auto collection timer — only refresh persisted data (backend collects independently)
   useEffect(() => {
     if (collectionTimerRef.current) {
       clearInterval(collectionTimerRef.current);
@@ -131,9 +152,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
 
     if (settings.collectionConfig.enabled && settings.collectionConfig.intervalSeconds >= 10) {
-      collectData();
+      refreshData();
       collectionTimerRef.current = setInterval(
-        collectData,
+        refreshData,
         settings.collectionConfig.intervalSeconds * 1000
       );
     }
@@ -141,9 +162,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     return () => {
       if (collectionTimerRef.current) clearInterval(collectionTimerRef.current);
     };
-  }, [settings.collectionConfig.enabled, settings.collectionConfig.intervalSeconds, collectData]);
+  }, [settings.collectionConfig.enabled, settings.collectionConfig.intervalSeconds, refreshData]);
 
-  // Auto refresh timer
+  // Auto refresh timer (user-defined interval for manual refresh rate)
   useEffect(() => {
     if (refreshTimerRef.current) {
       clearInterval(refreshTimerRef.current);
@@ -152,15 +173,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     if (settings.refreshInterval > 0) {
       refreshTimerRef.current = setInterval(() => {
-        collectData();
+        refreshData();
       }, settings.refreshInterval * 1000);
     }
 
     return () => {
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     };
-  }, [settings.refreshInterval, collectData]);
+  }, [settings.refreshInterval, refreshData]);
 
+  // Manual refresh: triggers full backend collection
   const handleManualRefresh = () => {
     collectData();
   };
