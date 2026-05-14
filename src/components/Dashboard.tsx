@@ -91,16 +91,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     if (currentSettings.useBackend && currentSettings.backendUrl) {
       // ===== Backend persistent mode =====
-      // Trigger backend to collect and persist to Oracle
+      // Trigger backend to collect (now parallel, much faster)
       await triggerBackendCollect(currentSettings.backendUrl);
-      // Then load fresh data from backend
-      const sts = await loadStatusesFromBackend(currentSettings.backendUrl);
+      // Load statuses and history in parallel (databases list rarely changes, skip reload)
+      const [sts, hist] = await Promise.all([
+        loadStatusesFromBackend(currentSettings.backendUrl),
+        loadHistoryFromBackend(currentSettings.backendUrl),
+      ]);
       setStatuses(sts);
-      const hist = await loadHistoryFromBackend(currentSettings.backendUrl);
       setAllHistory(hist);
-      // Refresh database list too
-      const freshDbs = await loadDatabasesFromBackend(currentSettings.backendUrl);
-      setDatabases(freshDbs);
     } else {
       // ===== Simulation mode =====
       const enabledDbs = dbs.filter(d => d.enabled);

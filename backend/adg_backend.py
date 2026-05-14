@@ -42,6 +42,7 @@ import hashlib
 import secrets
 import base64
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from cryptography.fernet import Fernet
 
@@ -257,6 +258,19 @@ INSTANT_CLIENT_DIR = os.environ.get('ORACLE_INSTANT_CLIENT', None)
 auto_collector = None
 auto_collector_lock = threading.Lock()
 
+# 本地Oracle连接池（避免每次查询都新建连接）
+_local_pool = None
+_local_pool_lock = threading.Lock()
+
+# 设置缓存（避免频繁 get_setting 建连查询）
+_settings_cache = {}
+_settings_cache_time = 0
+_settings_cache_lock = threading.Lock()
+
+# 采集互斥锁（防止自动采集和手动采集并发执行）
+_collecting = False
+_collecting_lock = threading.Lock()
+
 
 def init_oracle_client():
     """初始化Oracle客户端 (Oracle 11g需要thick模式)"""
@@ -274,13 +288,20 @@ def init_oracle_client():
 # ============================================================================
 
 def get_local_connection():
-    """获取本地Oracle数据库连接 (用于存储配置和历史数据)"""
-    conn = oracledb.connect(
-        user=LOCAL_DB_CONFIG['user'],
-        password=LOCAL_DB_CONFIG['password'],
-        dsn=LOCAL_DB_CONFIG['dsn']
-    )
-    return conn
+    """获取本地Oracle数据库连接 (从连接池获取)"""
+    global _local_pool
+    if _local_pool is None:
+        with _local_pool_lock:
+            if _local_pool is None:
+                _local_pool = oracledb.create_pool(
+                    user=LOCAL_DB_CONFIG['user'],
+                    password=LOCAL_DB_CONFIG['password'],
+                    dsn=LOCAL_DB_CONFIG['dsn'],
+                    min=1,
+                    max=10,
+                    increment=1,
+                )
+    return _local_pool.acquire()
 
 
 def get_remote_connection(host, port, service_name, username, password):
@@ -614,18 +635,28 @@ def determine_health_status(mrp_status, apply_lag_seconds, yellow_threshold, red
         return 'red'
 
 
-def get_setting(key, default=None):
-    """从数据库读取系统设置"""
+def _refresh_settings_cache():
+    """刷新设置缓存（从数据库加载所有设置到内存）"""
+    global _settings_cache, _settings_cache_time
     try:
         conn = get_local_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT SETTING_VALUE FROM ADG_SYSTEM_SETTINGS WHERE SETTING_KEY = :1", [key])
-        row = cursor.fetchone()
+        cursor.execute("SELECT SETTING_KEY, SETTING_VALUE FROM ADG_SYSTEM_SETTINGS")
+        rows = cursor.fetchall()
+        _settings_cache = {row[0]: row[1] for row in rows}
+        _settings_cache_time = time.time()
         cursor.close()
         conn.close()
-        return row[0] if row else default
     except Exception:
-        return default
+        pass  # 保持旧缓存
+
+
+def get_setting(key, default=None):
+    """从缓存读取系统设置，每30秒自动刷新"""
+    now = time.time()
+    if now - _settings_cache_time > 30:
+        _refresh_settings_cache()
+    return _settings_cache.get(key, default)
 
 
 def set_setting(key, value):
@@ -947,15 +978,33 @@ def persist_status(db_id, db_name, db_config, query_result):
         traceback.print_exc()
 
 
+def collect_single_standby(row, yellow_threshold, red_threshold):
+    """采集单个备库（线程池工作函数，在线程中执行）"""
+    db_id, db_name, host, port, service_name, username, encrypted_pwd = row
+    db_config = {
+        'host': host,
+        'port': int(port) if port else 1521,
+        'service_name': service_name,
+        'username': username,
+        'password': decrypt_standby_password(str(encrypted_pwd) if encrypted_pwd else ''),
+    }
+    result = query_single_standby(db_config, yellow_threshold, red_threshold)
+    persist_status(db_id, db_name, db_config, result)
+    return db_name, result
+
+
 def collect_all_standbys():
-    """采集所有已启用的备库状态"""
+    """采集所有已启用的备库状态（并行采集，避免串行阻塞）"""
     yellow = int(get_setting('yellow_threshold', '300'))
     red = int(get_setting('red_threshold', '1800'))
 
     try:
         conn = get_local_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT ID, NAME, HOST, PORT, SERVICE_NAME, USERNAME, PASSWORD FROM ADG_STANDBY_CONFIG WHERE ENABLED = 1")
+        cursor.execute("""
+            SELECT ID, NAME, HOST, PORT, SERVICE_NAME, USERNAME, PASSWORD
+            FROM ADG_STANDBY_CONFIG WHERE ENABLED = 1
+        """)
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -963,27 +1012,24 @@ def collect_all_standbys():
         print(f"[ERROR] 读取备库配置失败: {e}")
         return
 
-    for row in rows:
-        db_id = row[0]
-        db_name = row[1]
-        db_config = {
-            'host': row[2],
-            'port': int(row[3]) if row[3] else 1521,
-            'service_name': row[4],
-            'username': row[5],
-            'password': decrypt_standby_password(str(row[6]) if row[6] else ''),
-        }
+    if not rows:
+        return
 
-        try:
-            result = query_single_standby(db_config, yellow, red)
-            persist_status(db_id, db_name, db_config, result)
-            health = result.get('health_status', 'red')
-            symbol = '🟢' if health == 'green' else ('🟡' if health == 'yellow' else '🔴')
-            print(f"  {symbol} {db_name}: MRP={result['mrp_status']}, "
-                  f"ApplyLag={result['apply_lag_seconds']}s, "
-                  f"TransportLag={result['transport_lag_seconds']}s")
-        except Exception as e:
-            print(f"  🔴 {db_name}: 采集异常 - {e}")
+    # 并行采集，最多10个并发线程
+    max_workers = min(len(rows), 10)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(collect_single_standby, row, yellow, red): row for row in rows}
+        for future in as_completed(futures):
+            try:
+                db_name, result = future.result()
+                health = result.get('health_status', 'red')
+                symbol = '🟢' if health == 'green' else ('🟡' if health == 'yellow' else '🔴')
+                print(f"  {symbol} {db_name}: MRP={result['mrp_status']}, "
+                      f"ApplyLag={result['apply_lag_seconds']}s, "
+                      f"TransportLag={result['transport_lag_seconds']}s")
+            except Exception as e:
+                row = futures[future]
+                print(f"  🔴 {row[1]}: 采集异常 - {e}")
 
 
 def cleanup_old_history():
@@ -1020,6 +1066,7 @@ class AutoCollector(threading.Thread):
     def run(self):
         print("[INFO] 自动采集线程已启动")
         while self.running:
+            # 使用缓存读取设置，避免每次建连查询
             enabled = get_setting('auto_collect_enabled', '1')
             interval = int(get_setting('collection_interval', '30'))
             interval = max(10, interval)
@@ -1027,7 +1074,21 @@ class AutoCollector(threading.Thread):
             if enabled == '1':
                 print(f"\n[COLLECT] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 开始采集...")
                 try:
-                    collect_all_standbys()
+                    # 使用互斥锁，避免与手动采集并发
+                    global _collecting
+                    with _collecting_lock:
+                        if _collecting:
+                            print("[COLLECT] 上一次采集尚未完成，跳过本轮")
+                            should_collect = False
+                        else:
+                            _collecting = True
+                            should_collect = True
+                    if should_collect:
+                        try:
+                            collect_all_standbys()
+                        finally:
+                            with _collecting_lock:
+                                _collecting = False
                 except Exception as e:
                     print(f"[ERROR] 采集异常: {e}")
 
@@ -1383,12 +1444,20 @@ def query_standby():
 
 @app.route('/api/collect', methods=['POST'])
 def trigger_collect():
-    """手动触发一次全量采集"""
+    """手动触发一次全量采集（与自动采集互斥）"""
+    global _collecting
+    with _collecting_lock:
+        if _collecting:
+            return jsonify({'success': False, 'message': '采集正在进行中，请稍后再试'})
+        _collecting = True
     try:
         collect_all_standbys()
         return jsonify({'success': True, 'message': '采集完成', 'timestamp': datetime.now().isoformat()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    finally:
+        with _collecting_lock:
+            _collecting = False
 
 
 @app.route('/api/statuses', methods=['GET'])
@@ -1486,14 +1555,14 @@ def get_history():
 
         if db_id:
             cursor.execute("""
-                SELECT DB_ID, 
+                SELECT DB_ID,
                        TO_CHAR(COLLECT_TIME, 'YYYY-MM-DD HH24:MI:SS') AS COLLECT_TIME,
                        APPLY_LAG_SECONDS, TRANSPORT_LAG_SECONDS,
                        MRP_STATUS, HEALTH_STATUS
                 FROM ADG_MONITOR_HISTORY
                 WHERE DB_ID = :1
                   AND COLLECT_TIME >= SYSTIMESTAMP - NUMTODSINTERVAL(:2, 'HOUR')
-                ORDER BY COLLECT_TIME ASC
+                ORDER BY COLLECT_TIME DESC
                 FETCH FIRST :3 ROWS ONLY
             """, [db_id, hours, limit])
         else:
@@ -1504,7 +1573,7 @@ def get_history():
                        MRP_STATUS, HEALTH_STATUS
                 FROM ADG_MONITOR_HISTORY
                 WHERE COLLECT_TIME >= SYSTIMESTAMP - NUMTODSINTERVAL(:1, 'HOUR')
-                ORDER BY COLLECT_TIME ASC
+                ORDER BY COLLECT_TIME DESC
                 FETCH FIRST :2 ROWS ONLY
             """, [hours, limit])
 
@@ -1540,7 +1609,7 @@ def get_history():
                         FROM ADG_MONITOR_HISTORY
                         WHERE DB_ID = :1
                           AND COLLECT_TIME >= SYSTIMESTAMP - NUMTODSINTERVAL(:2, 'HOUR')
-                        ORDER BY COLLECT_TIME ASC
+                        ORDER BY COLLECT_TIME DESC
                     ) WHERE ROWNUM <= :3
                 """, [db_id, hours, limit])
             else:
@@ -1552,7 +1621,7 @@ def get_history():
                                MRP_STATUS, HEALTH_STATUS
                         FROM ADG_MONITOR_HISTORY
                         WHERE COLLECT_TIME >= SYSTIMESTAMP - NUMTODSINTERVAL(:1, 'HOUR')
-                        ORDER BY COLLECT_TIME ASC
+                        ORDER BY COLLECT_TIME DESC
                     ) WHERE ROWNUM <= :2
                 """, [hours, limit])
 

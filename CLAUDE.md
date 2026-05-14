@@ -25,6 +25,12 @@ python backend/adg_backend.py --port 5000 \
 
 python backend/adg_backend.py ... --no-auto-collect       # 禁用后端自动采集，由前端触发
 python backend/adg_backend.py ... --init-db-11g ...       # Oracle 11g 兼容 DDL
+python backend/adg_backend.py ... --debug ...             # Flask 调试模式
+python backend/adg_backend.py ... --instant-client /path/to/instantclient  # Oracle 11g thick 模式
+
+# 环境变量 (备选配置方式)
+# ADG_LOCAL_DSN, ADG_LOCAL_USER, ADG_LOCAL_PASSWORD  # 本地Oracle连接
+# ORACLE_INSTANT_CLIENT                                # Instant Client路径
 ```
 
 ## 架构概览
@@ -33,7 +39,9 @@ python backend/adg_backend.py ... --init-db-11g ...       # Oracle 11g 兼容 DD
 
 系统强制使用后端模式 (`useBackend: true`)，不再有演示/本地模式切换。前端通过 REST API 与 Flask 后端通信，后端连接远程 Oracle 备库执行 SQL 查询，结果持久化到本地 Oracle 的四张 `ADG_*` 表中。
 
-`store.ts` 中的 `simulateStandbyQuery()` 仅作为后端不可用时的降级方案保留。
+构建时 `vite-plugin-singlefile` 将所有资源 (JS/CSS/图片) 内联为单个 `dist/index.html` 文件，可直接用浏览器打开或部署到任意静态服务器。
+
+`store.ts` 中的 `simulateStandbyQuery()` 仅作为后端不可用时的降级方案保留。前端路径别名 `@` 映射到 `src/`，配置在 `vite.config.ts` 和 `tsconfig.json`。
 
 ### 前端结构 (`src/`)
 
@@ -72,6 +80,9 @@ requirements.txt           # flask, flask-cors, oracledb (cryptography 是 oracl
 - **密码哈希**: PBKDF2-HMAC-SHA256 (20万迭代 + 随机盐)，存储格式 `pbkdf2:sha256:200000$salt$hash`
 - **备库密码加密**: Fernet (AES-128-CBC)，密钥存于 `ADG_SYSTEM_SETTINGS.encryption_key`，密文格式 `FERN:base64`
 - **CLOB 延迟读取**: `fetchall()` 后必须先读 CLOB 再 `close()` 连接，否则 CLOB 定位器失效
+- **Oracle 11g 兼容**: `FETCH FIRST` 在 11g 不支持，`/api/history` 在异常时自动回退到 `ROWNUM` 子查询
+- **历史数据自动清理**: 每次采集计数器 +1，每 100 次采集自动清理过期历史 (默认保留 30 天，可通过 `history_retention_days` 设置调整)
+- **默认密码**: `admin123`，首次 --init-db 时写入 PBKDF2 哈希
 
 ### Oracle 持久化表
 

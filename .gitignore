@@ -6,3 +6,4 @@ __pycache__/
 .gstack/
 *.log
 .env
+node_modules
