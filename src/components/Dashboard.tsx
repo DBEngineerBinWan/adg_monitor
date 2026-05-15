@@ -34,24 +34,28 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const collectionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initialLoadingRef = useRef(false);
 
   // Load initial data - supports backend persistent mode
   useEffect(() => {
     const loadData = async () => {
-      const currentSettings = getSettings();
-      if (currentSettings.useBackend && currentSettings.backendUrl) {
-        // Backend persistent mode - load from Oracle database
-        const dbs = await loadDatabasesFromBackend(currentSettings.backendUrl);
-        setDatabases(dbs);
-        const sts = await loadStatusesFromBackend(currentSettings.backendUrl);
-        setStatuses(sts);
-        const hist = await loadHistoryFromBackend(currentSettings.backendUrl);
-        setAllHistory(hist);
-      } else {
-        // Local/simulation mode
-        setDatabases(getDatabases());
-        setStatuses(getStatuses());
-        setAllHistory(getHistory());
+      initialLoadingRef.current = true;
+      try {
+        const currentSettings = getSettings();
+        if (currentSettings.useBackend && currentSettings.backendUrl) {
+          const dbs = await loadDatabasesFromBackend(currentSettings.backendUrl);
+          setDatabases(dbs);
+          const sts = await loadStatusesFromBackend(currentSettings.backendUrl);
+          setStatuses(sts);
+          const hist = await loadHistoryFromBackend(currentSettings.backendUrl);
+          setAllHistory(hist);
+        } else {
+          setDatabases(getDatabases());
+          setStatuses(getStatuses());
+          setAllHistory(getHistory());
+        }
+      } finally {
+        initialLoadingRef.current = false;
       }
     };
     loadData();
@@ -85,7 +89,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const fetchingRef = useRef(false);
 
   // Auto-refresh: only load persisted data (don't trigger backend collection)
+  // Skip during initial load to avoid duplicate API calls
+  // Fetches only last 2 hours of history to avoid rendering 2000+ data points every cycle
   const refreshData = useCallback(async () => {
+    if (initialLoadingRef.current) return;
     const currentSettings = getSettings();
     if (!currentSettings.useBackend || !currentSettings.backendUrl) return;
     if (fetchingRef.current) return;
@@ -94,7 +101,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     try {
       const [sts, hist] = await Promise.all([
         loadStatusesFromBackend(currentSettings.backendUrl),
-        loadHistoryFromBackend(currentSettings.backendUrl),
+        loadHistoryFromBackend(currentSettings.backendUrl, undefined, 2, 500),
       ]);
       setStatuses(sts);
       setAllHistory(hist);
@@ -105,40 +112,46 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   // Manual collection: trigger backend collection + reload
   const collectData = useCallback(async () => {
+    if (initialLoadingRef.current || fetchingRef.current) return;
     const dbs = getDatabases();
     const currentSettings = getSettings();
     if (dbs.length === 0 && !currentSettings.useBackend) return;
 
     setCollecting(true);
+    fetchingRef.current = true;
 
-    if (currentSettings.useBackend && currentSettings.backendUrl) {
-      // ===== Backend persistent mode =====
-      await triggerBackendCollect(currentSettings.backendUrl);
-      // Load statuses and history in parallel
-      const [sts, hist] = await Promise.all([
-        loadStatusesFromBackend(currentSettings.backendUrl),
-        loadHistoryFromBackend(currentSettings.backendUrl),
-      ]);
-      setStatuses(sts);
-      setAllHistory(hist);
-    } else {
-      // ===== Simulation mode =====
-      const enabledDbs = dbs.filter(d => d.enabled);
-      enabledDbs.forEach(db => {
-        const status = simulateStandbyQuery(db, currentSettings.collectionConfig);
-        saveStatus(status);
-        const record: HistoryRecord = {
-          dbId: db.id,
-          timestamp: status.lastChecked,
-          applyLagSeconds: status.applyLagSeconds,
-          transportLagSeconds: status.transportLagSeconds,
-          mrpStatus: status.mrpStatus,
-          healthStatus: status.healthStatus,
-        };
-        addHistory(record);
-      });
-      setStatuses(getStatuses());
-      setAllHistory(getHistory());
+    try {
+      if (currentSettings.useBackend && currentSettings.backendUrl) {
+        // ===== Backend persistent mode =====
+        await triggerBackendCollect(currentSettings.backendUrl);
+        // Load statuses and history in parallel
+        const [sts, hist] = await Promise.all([
+          loadStatusesFromBackend(currentSettings.backendUrl),
+          loadHistoryFromBackend(currentSettings.backendUrl),
+        ]);
+        setStatuses(sts);
+        setAllHistory(hist);
+      } else {
+        // ===== Simulation mode =====
+        const enabledDbs = dbs.filter(d => d.enabled);
+        enabledDbs.forEach(db => {
+          const status = simulateStandbyQuery(db, currentSettings.collectionConfig);
+          saveStatus(status);
+          const record: HistoryRecord = {
+            dbId: db.id,
+            timestamp: status.lastChecked,
+            applyLagSeconds: status.applyLagSeconds,
+            transportLagSeconds: status.transportLagSeconds,
+            mrpStatus: status.mrpStatus,
+            healthStatus: status.healthStatus,
+          };
+          addHistory(record);
+        });
+        setStatuses(getStatuses());
+        setAllHistory(getHistory());
+      }
+    } catch {} finally {
+      fetchingRef.current = false;
     }
 
     setTimeout(() => setCollecting(false), 500);

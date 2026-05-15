@@ -43,6 +43,8 @@ python backend/adg_backend.py ... --instant-client /path/to/instantclient  # Ora
 
 `store.ts` 中的 `simulateStandbyQuery()` 仅作为后端不可用时的降级方案保留。前端路径别名 `@` 映射到 `src/`，配置在 `vite.config.ts` 和 `tsconfig.json`。
 
+当前只实现了深色主题，所有组件硬编码深色背景样式 (`#0a0e27` / `#0d1b3e` 等)。无自动化测试套件。
+
 ### 前端结构 (`src/`)
 
 ```
@@ -58,18 +60,27 @@ components/
   StandbyCard.tsx          # 备库卡片: MRP 状态、延时、健康状态 (红>黄>绿排序)
   DataTable.tsx            # 延时表格: 全宽表格，列含异常原因，点击行打开详情
   DetailModal.tsx          # 备库详情: V$DATABASE / V$MANAGED_STANDBY / V$DATAGUARD_STATS
+                           #   含延时趋势图、时间范围选择(1h~30d)、30秒自动刷新
   SettingsModal.tsx        # 4 Tab (备库管理 / 采集配置 / 后端配置 / 安全设置)
-  OverviewChart.tsx        # 全局趋势图: 所有备库延时折线图 (Recharts)
-  TrendChart.tsx           # 单库趋势图: 面积图 + 传输延时折线 + 告警参考线
+  OverviewChart.tsx        # 全局趋势图: 所有备库应用延时折线图对比 (Recharts)
+  TrendChart.tsx           # 单库趋势图: 面积图 + 传输延时折线 + 黄/红告警参考线
+                           #   含 Brush 滑块、放大/缩小/重置按钮
 ```
 
 Dashboard 关键 state: `activeTab` (cards/table), `healthFilter` (green/yellow/red/null), `searchQuery`。搜索同时匹配备库名称和 IP 地址。状态数字可点击筛选（再次点击取消）。
 
-数据流（重要）:
+Dashboard 定时器架构 (3 个独立计时器):
+- **`collectionTimerRef`**: 自动定时器，调用 `refreshData()` → `GET /api/statuses` + `GET /api/history`，只拉不采集
+- **`refreshTimerRef`**: 用户自定义刷新间隔 (Header 下拉选择)，同样只拉不采集
+- **`idleTimerRef`**: 会话超时检测，每 10 秒检查空闲时间，超时自动登出
+
+数据流 (重要):
 - **自动定时器** → 调用 `refreshData()`，只拉 `GET /api/statuses` + `GET /api/history`，不触发后端采集
 - **手动"采集 & 刷新"按钮** → 调用 `collectData()`，触发 `POST /api/collect` + 拉取数据
 - **并发守卫** → `fetchingRef` 防止同一 Tab 重复请求
 - SettingsModal 批量操作后通过 `onDatabasesChanged` 回调刷新备库列表
+- DetailModal 打开时，每 30 秒通过 `loadHistoryFromBackend(dbId, historyHours)` 自动刷新趋势图数据
+- DetailModal 趋势图支持时间范围切换: 1h / 6h / 24h / 48h (默认) / 7d / 30d，通过 `historyHours` state 控制
 
 ### 后端结构 (`backend/`)
 

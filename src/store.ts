@@ -384,10 +384,11 @@ export async function triggerBackendCollect(backendUrl: string): Promise<boolean
 export async function loadHistoryFromBackend(
   backendUrl: string,
   dbId?: string,
-  hours: number = 24
+  hours: number = 24,
+  limit: number = 2000
 ): Promise<HistoryRecord[]> {
   try {
-    let url = `${backendUrl}/api/history?hours=${hours}&limit=2000`;
+    let url = `${backendUrl}/api/history?hours=${hours}&limit=${limit}`;
     if (dbId) url += `&db_id=${dbId}`;
     const response = await fetch(url);
     const data = await response.json();
