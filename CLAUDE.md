@@ -63,7 +63,13 @@ components/
   TrendChart.tsx           # 单库趋势图: 面积图 + 传输延时折线 + 告警参考线
 ```
 
-Dashboard 关键 state: `activeTab` (cards/table), `healthFilter` (green/yellow/red/null), `searchQuery`。搜索同时匹配备库名称和 IP 地址。状态数字可点击筛选（再次点击取消）。数据流: `collectData()` 统一处理后端采集+刷新。
+Dashboard 关键 state: `activeTab` (cards/table), `healthFilter` (green/yellow/red/null), `searchQuery`。搜索同时匹配备库名称和 IP 地址。状态数字可点击筛选（再次点击取消）。
+
+数据流（重要）:
+- **自动定时器** → 调用 `refreshData()`，只拉 `GET /api/statuses` + `GET /api/history`，不触发后端采集
+- **手动"采集 & 刷新"按钮** → 调用 `collectData()`，触发 `POST /api/collect` + 拉取数据
+- **并发守卫** → `fetchingRef` 防止同一 Tab 重复请求
+- SettingsModal 批量操作后通过 `onDatabasesChanged` 回调刷新备库列表
 
 ### 后端结构 (`backend/`)
 
@@ -73,15 +79,18 @@ requirements.txt           # flask, flask-cors, oracledb (cryptography 是 oracl
 ```
 
 关键设计点：
-- **本地 Oracle 连接** (`get_local_connection`): 持久化存储
-- **远程 Oracle 连接** (`get_remote_connection`): 查询备库状态
+- **本地 Oracle 连接池** (`get_local_connection`): `oracledb.create_pool` (min=1, max=10)，`conn.close()` 归还池中，不要改为每次新建
+- **远程 Oracle 连接** (`get_remote_connection`): 每次按需创建，备库侧无需连接池
+- **并行采集** (`collect_all_standbys`): `ThreadPoolExecutor` (max 10 workers)，不要改回串行 for 循环
+- **设置缓存** (`_settings_cache`): 内存字典，30s TTL 自动刷新，`get_setting()` 不走 DB
+- **采集互斥锁** (`_collecting_lock`): 防止自动采集与手动 `/api/collect` 并发
 - **自动采集线程** (`AutoCollector`): daemon 线程，可通过 `--no-auto-collect` 禁用
 - **双版本 DDL**: 12c+ 用 `IDENTITY`，11g 用 `SEQUENCE` + `TRIGGER`
 - **密码哈希**: PBKDF2-HMAC-SHA256 (20万迭代 + 随机盐)，存储格式 `pbkdf2:sha256:200000$salt$hash`
 - **备库密码加密**: Fernet (AES-128-CBC)，密钥存于 `ADG_SYSTEM_SETTINGS.encryption_key`，密文格式 `FERN:base64`
 - **CLOB 延迟读取**: `fetchall()` 后必须先读 CLOB 再 `close()` 连接，否则 CLOB 定位器失效
 - **Oracle 11g 兼容**: `FETCH FIRST` 在 11g 不支持，`/api/history` 在异常时自动回退到 `ROWNUM` 子查询
-- **历史数据自动清理**: 每次采集计数器 +1，每 100 次采集自动清理过期历史 (默认保留 30 天，可通过 `history_retention_days` 设置调整)
+- **历史数据自动清理**: 每 100 次采集清理过期历史 (默认保留 30 天)
 - **默认密码**: `admin123`，首次 --init-db 时写入 PBKDF2 哈希
 
 ### Oracle 持久化表
@@ -109,6 +118,14 @@ requirements.txt           # flask, flask-cors, oracledb (cryptography 是 oracl
 
 `BLOCK#=0` 条件下 MRP0 虽然是 WAIT_FOR_LOG 但实际已追平，应提示警告而非显示正常。
 
+### 性能红线 (不要退化)
+
+- **前端定时器不触发后端采集**: `refreshData()` 只拉 `GET /api/statuses` + `GET /api/history`。只有手动按钮和初始加载调 `POST /api/collect`。否则多个 Tab 会 API 洪水冲垮 Flask 单线程服务器。
+- **后端采集保持并行**: `collect_all_standbys()` 使用 `ThreadPoolExecutor`，不可改回串行 for 循环。
+- **本地连接走连接池**: `get_local_connection()` 从 `oracledb.create_pool` 获取，`conn.close()` 归还。
+- **设置走内存缓存**: `get_setting()` 从 `_settings_cache` 读，不要每次建连查库。
+- **采集有互斥锁**: `_collecting_lock` 防止并发写入。
+
 ### REST API 端点
 
 | 方法 | 路径 | 说明 |
@@ -121,7 +138,9 @@ requirements.txt           # flask, flask-cors, oracledb (cryptography 是 oracl
 | GET | `/api/databases` | 获取备库列表 (密码解密后返回) |
 | POST | `/api/databases` | 添加/更新备库 (密码加密后存储) |
 | DELETE | `/api/databases/<id>` | 删除备库及关联数据 |
-| POST | `/api/collect` | 手动触发全量采集 |
+| POST | `/api/databases/batch` | 批量导入备库 (数组 `{databases: [...]}`，自动生成 ID 并加密密码) |
+| POST | `/api/databases/batch-delete` | 批量删除备库 (数组 `{ids: [...]}`，含关联数据) |
+| POST | `/api/collect` | 手动触发全量采集 (与自动采集互斥) |
 | GET | `/api/statuses` | 获取所有备库最新状态 |
 | POST | `/api/query` | 查询单个备库状态 |
 | GET | `/api/history` | 历史数据 (参数: db_id, hours, limit) |

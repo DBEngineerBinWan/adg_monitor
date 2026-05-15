@@ -20,7 +20,7 @@ export default function TrendChart({ history, dbName }: TrendChartProps) {
 
   const chartData = useMemo(() => {
     if (history.length === 0) return [];
-    return history.map(h => ({
+    return [...history].reverse().map(h => ({
       timestamp: h.timestamp,
       time: new Date(h.timestamp).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       fullTime: new Date(h.timestamp).toLocaleString('zh-CN', { hour12: false }),
