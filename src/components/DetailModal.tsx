@@ -6,10 +6,12 @@ import TrendChart from './TrendChart';
 interface DetailModalProps {
   status: StandbyStatus;
   history: HistoryRecord[];
+  historyHours: number;
+  onHistoryHoursChange: (hours: number) => void;
   onClose: () => void;
 }
 
-export default function DetailModal({ status, history, onClose }: DetailModalProps) {
+export default function DetailModal({ status, history, historyHours, onHistoryHoursChange, onClose }: DetailModalProps) {
   const getMrpStatusLabel = (s: string) => {
     const labels: Record<string, string> = {
       'APPLYING_LOG': '正在应用日志 (APPLYING_LOG)',
@@ -215,11 +217,29 @@ export default function DetailModal({ status, history, onClose }: DetailModalPro
             background: 'rgba(0,0,0,0.3)',
             border: '1px solid rgba(0,212,255,0.1)',
           }}>
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-4 h-4 text-cyan-400" />
-              <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">
-                延时趋势图
-              </h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-cyan-400" />
+                <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">
+                  延时趋势图
+                </h3>
+                <span className="text-xs text-gray-500">({history.length} 条记录)</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {[{ label: '1小时', h: 1 }, { label: '6小时', h: 6 }, { label: '24小时', h: 24 }, { label: '48小时', h: 48 }, { label: '7天', h: 168 }, { label: '30天', h: 720 }].map(opt => (
+                  <button
+                    key={opt.h}
+                    onClick={() => onHistoryHoursChange(opt.h)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                      historyHours === opt.h
+                        ? 'text-cyan-400 bg-cyan-400/10 border border-cyan-400/30'
+                        : 'text-gray-500 hover:text-gray-300 border border-transparent'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <TrendChart history={history} dbName={status.dbName} />
           </div>

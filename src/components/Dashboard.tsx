@@ -238,8 +238,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   };
 
   const selectedStatus = selectedDb ? statuses[selectedDb] : null;
-  // For detail modal, load specific db history
+  // For detail modal, load specific db history and auto-refresh every 30s
   const [selectedHistory, setSelectedHistory] = useState<HistoryRecord[]>([]);
+  const [historyHours, setHistoryHours] = useState(48);
   useEffect(() => {
     if (!selectedDb) {
       setSelectedHistory([]);
@@ -248,14 +249,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const loadSelectedHist = async () => {
       const currentSettings = getSettings();
       if (currentSettings.useBackend && currentSettings.backendUrl) {
-        const hist = await loadHistoryFromBackend(currentSettings.backendUrl, selectedDb, 48);
+        const hist = await loadHistoryFromBackend(currentSettings.backendUrl, selectedDb, historyHours);
         setSelectedHistory(hist);
       } else {
         setSelectedHistory(getHistoryForDb(selectedDb));
       }
     };
     loadSelectedHist();
-  }, [selectedDb]);
+    const timer = setInterval(loadSelectedHist, 30000);
+    return () => clearInterval(timer);
+  }, [selectedDb, historyHours]);
 
   const dbNames: Record<string, string> = {};
   databases.forEach(db => { dbNames[db.id] = db.name; });
@@ -490,6 +493,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         <DetailModal
           status={selectedStatus}
           history={selectedHistory}
+          historyHours={historyHours}
+          onHistoryHoursChange={setHistoryHours}
           onClose={() => setSelectedDb(null)}
         />
       )}
