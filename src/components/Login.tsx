@@ -29,7 +29,7 @@ export default function Login({ onLogin }: LoginProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #0a0e27 0%, #0d1b3e 30%, #0a1628 60%, #060b1a 100%)' }}>
+      style={{ background: 'var(--bg-page)' }}>
       
       {/* Animated background particles */}
       <div className="absolute inset-0 overflow-hidden">
@@ -53,7 +53,7 @@ export default function Login({ onLogin }: LoginProps) {
       {/* Grid lines background */}
       <div className="absolute inset-0 opacity-5"
         style={{
-          backgroundImage: 'linear-gradient(rgba(0,212,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.3) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(var(--accent-primary) 1px, transparent 1px), linear-gradient(90deg, var(--accent-primary) 1px, transparent 1px)',
           backgroundSize: '50px 50px',
         }}
       />
@@ -63,9 +63,9 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4"
             style={{
-              background: 'linear-gradient(135deg, rgba(0,212,255,0.2), rgba(123,97,255,0.2))',
-              border: '1px solid rgba(0,212,255,0.3)',
-              boxShadow: '0 0 30px rgba(0,212,255,0.2)',
+              background: 'linear-gradient(135deg, var(--accent-cyan-light), var(--accent-purple-light))',
+              border: '1px solid var(--accent-primary)',
+              boxShadow: '0 0 30px var(--accent-cyan-light)',
             }}>
             <Database className="w-10 h-10 text-cyan-400" />
           </div>
@@ -79,9 +79,9 @@ export default function Login({ onLogin }: LoginProps) {
         {/* Login card */}
         <div className="rounded-2xl p-8 backdrop-blur-xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(13,27,62,0.8), rgba(10,22,40,0.9))',
-            border: '1px solid rgba(0,212,255,0.15)',
-            boxShadow: '0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-default)',
+            boxShadow: 'var(--shadow-modal), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>
           <div className="flex items-center gap-2 mb-6">
             <Shield className="w-5 h-5 text-cyan-400" />
@@ -99,8 +99,8 @@ export default function Login({ onLogin }: LoginProps) {
                   placeholder="请输入密码..."
                   className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 outline-none transition-all duration-300 focus:ring-2 focus:ring-cyan-500/50"
                   style={{
-                    background: 'rgba(0,0,0,0.3)',
-                    border: '1px solid rgba(0,212,255,0.2)',
+                    background: 'var(--bg-surface-dim)',
+                    border: '1px solid var(--border-strong)',
                   }}
                   autoFocus
                 />
@@ -125,7 +125,7 @@ export default function Login({ onLogin }: LoginProps) {
               disabled={submitting}
               className="w-full py-3 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                background: 'linear-gradient(135deg, #0891b2, #6366f1)',
+                background: 'var(--btn-primary-bg)',
                 boxShadow: '0 4px 15px rgba(8,145,178,0.4)',
               }}
             >

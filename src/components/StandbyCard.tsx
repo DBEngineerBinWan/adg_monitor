@@ -62,7 +62,7 @@ export default function StandbyCard({ status, onClick }: StandbyCardProps) {
       className="relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 group"
       onClick={onClick}
       style={{
-        background: 'linear-gradient(135deg, rgba(13,27,62,0.9), rgba(10,22,40,0.95))',
+        background: 'var(--bg-card)',
         border: `1px solid ${colors.border}`,
         boxShadow: `0 4px 20px ${colors.glow}, inset 0 1px 0 rgba(255,255,255,0.03)`,
       }}
@@ -141,9 +141,9 @@ export default function StandbyCard({ status, onClick }: StandbyCardProps) {
         <button
           className="w-full py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 group-hover:scale-[1.02]"
           style={{
-            background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(123,97,255,0.15))',
-            border: '1px solid rgba(0,212,255,0.2)',
-            color: '#00d4ff',
+            background: 'linear-gradient(135deg, var(--accent-cyan-light), var(--accent-purple-light))',
+            border: '1px solid var(--border-strong)',
+            color: 'var(--accent-primary)',
           }}
         >
           <Eye className="w-3.5 h-3.5" />

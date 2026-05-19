@@ -283,7 +283,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   return (
     <div className="min-h-screen" style={{
-      background: 'linear-gradient(135deg, #0a0e27 0%, #0d1b3e 30%, #0a1628 60%, #060b1a 100%)',
+      background: 'var(--bg-page)',
     }}>
       {/* Background effects */}
       <div className="fixed inset-0 pointer-events-none">
@@ -312,8 +312,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         {/* Tab bar */}
         <div className="px-6" style={{
-          background: 'linear-gradient(180deg, rgba(10,14,39,0.8), rgba(13,27,62,0.5))',
-          borderBottom: '1px solid rgba(0,212,255,0.08)',
+          background: 'var(--bg-tab-bar)',
+          borderBottom: '1px solid var(--border-subtle)',
         }}>
           <div className="flex items-center gap-1">
             <button
@@ -385,7 +385,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="搜索备库名称..."
                     className="w-48 pl-8 pr-8 py-2 rounded-lg text-sm text-white outline-none transition-all focus:ring-1 focus:ring-cyan-500/50"
-                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+                    style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
                   />
                   {searchQuery && (
                     <button
@@ -400,9 +400,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   onClick={handleManualRefresh}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(123,97,255,0.15))',
-                    border: '1px solid rgba(0,212,255,0.2)',
-                    color: '#00d4ff',
+                    background: 'linear-gradient(135deg, var(--accent-cyan-light), var(--accent-purple-light))',
+                    border: '1px solid var(--border-strong)',
+                    color: 'var(--accent-primary)',
                   }}
                 >
                   <RefreshCw className={`w-4 h-4 ${collecting ? 'animate-spin' : ''}`} />
@@ -445,8 +445,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   if (!status) {
                     return (
                       <div key={db.id} className="rounded-xl p-4 flex items-center justify-center" style={{
-                        background: 'linear-gradient(135deg, rgba(13,27,62,0.6), rgba(10,22,40,0.8))',
-                        border: '1px solid rgba(255,255,255,0.05)',
+                        background: 'var(--bg-card-alt)',
+                        border: '1px solid var(--border-white-dim)',
                         minHeight: '200px',
                       }}>
                         <div className="text-center text-gray-500 text-sm">

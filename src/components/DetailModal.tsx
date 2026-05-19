@@ -44,16 +44,16 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
         className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'linear-gradient(135deg, rgba(10,14,39,0.98), rgba(13,27,62,0.95))',
-          border: '1px solid rgba(0,212,255,0.2)',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 40px rgba(0,212,255,0.1)',
+          background: 'var(--bg-modal)',
+          border: '1px solid var(--border-strong)',
+          boxShadow: 'var(--shadow-modal), 0 0 40px var(--accent-cyan-light)',
         }}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between p-5 rounded-t-2xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(10,14,39,0.98), rgba(13,27,62,0.95))',
-            borderBottom: '1px solid rgba(0,212,255,0.1)',
+            background: 'var(--bg-modal)',
+            borderBottom: '1px solid var(--border-default)',
           }}>
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full" style={{ background: statusColor, boxShadow: `0 0 10px ${statusColor}` }} />
@@ -68,8 +68,8 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
         <div className="p-5 space-y-5">
           {/* Database Info - V$DATABASE */}
           <div className="rounded-xl p-4" style={{
-            background: 'rgba(0,0,0,0.3)',
-            border: '1px solid rgba(0,212,255,0.1)',
+            background: 'var(--bg-surface-dim)',
+            border: '1px solid var(--border-default)',
           }}>
             <div className="flex items-center gap-2 mb-3">
               <Database className="w-4 h-4 text-cyan-400" />
@@ -89,8 +89,8 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
 
           {/* MRP Status - V$MANAGED_STANDBY */}
           <div className="rounded-xl p-4" style={{
-            background: 'rgba(0,0,0,0.3)',
-            border: '1px solid rgba(0,212,255,0.1)',
+            background: 'var(--bg-surface-dim)',
+            border: '1px solid var(--border-default)',
           }}>
             <div className="flex items-center gap-2 mb-3">
               <Activity className="w-4 h-4 text-cyan-400" />
@@ -157,8 +157,8 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
 
           {/* DataGuard Stats - V$DATAGUARD_STATS */}
           <div className="rounded-xl p-4" style={{
-            background: 'rgba(0,0,0,0.3)',
-            border: '1px solid rgba(0,212,255,0.1)',
+            background: 'var(--bg-surface-dim)',
+            border: '1px solid var(--border-default)',
           }}>
             <div className="flex items-center gap-2 mb-3">
               <Shield className="w-4 h-4 text-cyan-400" />
@@ -169,8 +169,8 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {status.dataguardStats.map((stat, i) => (
                 <div key={i} className="rounded-lg p-3" style={{
-                  background: 'rgba(0,212,255,0.05)',
-                  border: '1px solid rgba(0,212,255,0.08)',
+                  background: 'var(--accent-cyan-light)',
+                  border: '1px solid var(--border-subtle)',
                 }}>
                   <div className="text-[10px] text-gray-500 uppercase mb-1">{stat.name}</div>
                   <div className="text-sm font-mono font-bold text-white">{stat.value}</div>
@@ -198,8 +198,8 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
                 </div>
               </div>
               <div className="rounded-lg p-3" style={{
-                background: 'rgba(0,212,255,0.05)',
-                border: '1px solid rgba(0,212,255,0.1)',
+                background: 'var(--accent-cyan-light)',
+                border: '1px solid var(--border-default)',
               }}>
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-gray-400" />
@@ -214,8 +214,8 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
 
           {/* Trend Chart */}
           <div className="rounded-xl p-4" style={{
-            background: 'rgba(0,0,0,0.3)',
-            border: '1px solid rgba(0,212,255,0.1)',
+            background: 'var(--bg-surface-dim)',
+            border: '1px solid var(--border-default)',
           }}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -252,8 +252,8 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg p-2" style={{
-      background: 'rgba(0,212,255,0.03)',
-      border: '1px solid rgba(0,212,255,0.06)',
+      background: 'var(--accent-cyan-light)',
+      border: '1px solid var(--border-subtle)',
     }}>
       <div className="text-[10px] text-gray-500 mb-0.5">{label}</div>
       <div className="text-xs font-mono text-white font-semibold truncate" title={value}>{value}</div>

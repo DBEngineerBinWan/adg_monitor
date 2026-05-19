@@ -28,6 +28,7 @@ export default function SettingsModal({
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [saveMsg, setSaveMsg] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   
@@ -363,12 +364,19 @@ export default function SettingsModal({
     }
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     if (localSettings.collectionConfig.intervalSeconds < 10) {
       alert('采集间隔最低10秒');
       return;
     }
-    onSaveSettings({ ...localSettings, useBackend: true });
+    setSaveMsg('');
+    try {
+      await onSaveSettings({ ...localSettings, useBackend: true });
+      setSaveMsg('配置已保存');
+      setTimeout(() => setSaveMsg(''), 2000);
+    } catch {
+      setSaveMsg('保存失败');
+    }
   };
 
   const handleChangePassword = async () => {
@@ -430,13 +438,13 @@ export default function SettingsModal({
         className="relative w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'linear-gradient(135deg, rgba(10,14,39,0.98), rgba(13,27,62,0.95))',
-          border: '1px solid rgba(0,212,255,0.2)',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 40px rgba(0,212,255,0.1)',
+          background: 'var(--bg-modal)',
+          border: '1px solid var(--border-strong)',
+          boxShadow: 'var(--shadow-modal), 0 0 40px var(--accent-cyan-light)',
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid rgba(0,212,255,0.1)' }}>
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border-default)' }}>
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-cyan-400" />
             <h2 className="text-lg font-bold text-white">系统设置</h2>
@@ -447,7 +455,7 @@ export default function SettingsModal({
         </div>
 
         {/* Tabs */}
-        <div className="flex px-5 pt-3 gap-1" style={{ borderBottom: '1px solid rgba(0,212,255,0.08)' }}>
+        <div className="flex px-5 pt-3 gap-1" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           {tabs.map(tab => (
             <button
               key={tab.key}
@@ -494,8 +502,8 @@ export default function SettingsModal({
                     onClick={handleNewDb}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-cyan-400 transition-all hover:scale-105"
                     style={{
-                      background: 'rgba(0,212,255,0.1)',
-                      border: '1px solid rgba(0,212,255,0.2)',
+                      background: 'var(--accent-cyan-light)',
+                      border: '1px solid var(--border-strong)',
                     }}
                   >
                     <Plus className="w-4 h-4" />
@@ -535,7 +543,7 @@ export default function SettingsModal({
                     rows={8}
                     className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none font-mono resize-y"
                     style={{
-                      background: 'rgba(0,0,0,0.3)',
+                      background: 'var(--bg-surface-dim)',
                       border: '1px solid rgba(123,97,255,0.15)',
                     }}
                   />
@@ -624,7 +632,7 @@ export default function SettingsModal({
                         onClick={handleBatchImport}
                         disabled={batchImporting || previewData.length === 0}
                         className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-                        style={{ background: 'linear-gradient(135deg, #7c3aed, #6366f1)' }}
+                        style={{ background: 'var(--btn-primary-bg)' }}
                       >
                         {batchImporting ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -641,8 +649,8 @@ export default function SettingsModal({
               {/* Edit form */}
               {editingDb && (
                 <div className="rounded-xl p-4 mb-4" style={{
-                  background: 'rgba(0,212,255,0.05)',
-                  border: '1px solid rgba(0,212,255,0.15)',
+                  background: 'var(--border-subtle)',
+                  border: '1px solid var(--border-default)',
                 }}>
                   <h4 className="text-sm font-bold text-cyan-400 mb-3">
                     {databases.find(d => d.id === editingDb.id) ? '编辑备库' : '添加备库'}
@@ -735,7 +743,7 @@ export default function SettingsModal({
                     </button>
                     <button onClick={handleSaveDb}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-105"
-                      style={{ background: 'linear-gradient(135deg, #0891b2, #6366f1)' }}>
+                      style={{ background: 'var(--btn-primary-bg)' }}>
                       <Save className="w-4 h-4" />
                       保存
                     </button>
@@ -783,8 +791,8 @@ export default function SettingsModal({
                       selectedIds.has(db.id) ? 'bg-cyan-400/5' : 'hover:bg-white/5'
                     }`}
                     style={{
-                      background: selectedIds.has(db.id) ? 'rgba(0,212,255,0.05)' : 'rgba(0,0,0,0.2)',
-                      border: selectedIds.has(db.id) ? '1px solid rgba(0,212,255,0.15)' : '1px solid rgba(0,212,255,0.06)',
+                      background: selectedIds.has(db.id) ? 'var(--border-subtle)' : 'var(--bg-surface-alt)',
+                      border: selectedIds.has(db.id) ? '1px solid var(--border-default)' : '1px solid var(--border-subtle)',
                     }}
                   >
                     <div className="flex items-center gap-3">
@@ -829,8 +837,8 @@ export default function SettingsModal({
               <p className="text-sm text-gray-400 mb-4">配置数据采集参数和告警阈值</p>
 
               <div className="rounded-xl p-4" style={{
-                background: 'rgba(0,0,0,0.2)',
-                border: '1px solid rgba(0,212,255,0.08)',
+                background: 'var(--bg-surface-alt)',
+                border: '1px solid var(--border-subtle)',
               }}>
                 <h4 className="text-sm font-bold text-white mb-3">采集设置</h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -848,7 +856,7 @@ export default function SettingsModal({
                         }
                       })}
                       className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none"
-                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
                     />
                   </div>
                   <div className="flex items-end">
@@ -874,8 +882,8 @@ export default function SettingsModal({
               </div>
 
               <div className="rounded-xl p-4" style={{
-                background: 'rgba(0,0,0,0.2)',
-                border: '1px solid rgba(0,212,255,0.08)',
+                background: 'var(--bg-surface-alt)',
+                border: '1px solid var(--border-subtle)',
               }}>
                 <h4 className="text-sm font-bold text-white mb-3">告警阈值设置</h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -896,7 +904,7 @@ export default function SettingsModal({
                         }
                       })}
                       className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none"
-                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(234,179,8,0.2)' }}
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid rgba(234,179,8,0.2)' }}
                     />
                     <p className="text-[10px] text-gray-600 mt-1">MRP正常且延时超过此值显示黄色</p>
                   </div>
@@ -917,7 +925,7 @@ export default function SettingsModal({
                         }
                       })}
                       className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none"
-                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(239,68,68,0.2)' }}
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid rgba(239,68,68,0.2)' }}
                     />
                     <p className="text-[10px] text-gray-600 mt-1">MRP正常且延时超过此值显示红色</p>
                   </div>
@@ -925,8 +933,8 @@ export default function SettingsModal({
               </div>
 
               <div className="rounded-xl p-4" style={{
-                background: 'rgba(0,0,0,0.2)',
-                border: '1px solid rgba(0,212,255,0.08)',
+                background: 'var(--bg-surface-alt)',
+                border: '1px solid var(--border-subtle)',
               }}>
                 <h4 className="text-sm font-bold text-white mb-3">会话设置</h4>
                 <div>
@@ -940,16 +948,21 @@ export default function SettingsModal({
                       idleTimeoutMinutes: Math.max(1, parseInt(e.target.value) || 30),
                     })}
                     className="w-full max-w-xs px-3 py-2 rounded-lg text-sm text-white outline-none"
-                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+                    style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
                   />
                   <p className="text-[10px] text-gray-600 mt-1">页面无操作超过此时间将自动退出到登录界面</p>
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex items-center justify-end gap-3">
+                {saveMsg && (
+                  <span className={`text-xs ${saveMsg === '配置已保存' ? 'text-green-400' : 'text-red-400'}`}>
+                    {saveMsg === '配置已保存' ? '✓' : '✗'} {saveMsg}
+                  </span>
+                )}
                 <button onClick={handleSaveSettings}
                   className="flex items-center gap-1.5 px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-105"
-                  style={{ background: 'linear-gradient(135deg, #0891b2, #6366f1)' }}>
+                  style={{ background: 'var(--btn-primary-bg)' }}>
                   <Save className="w-4 h-4" />
                   保存配置
                 </button>
@@ -957,8 +970,8 @@ export default function SettingsModal({
 
               {/* Status color explanation */}
               <div className="rounded-xl p-4" style={{
-                background: 'rgba(0,0,0,0.15)',
-                border: '1px solid rgba(0,212,255,0.05)',
+                background: 'var(--bg-section)',
+                border: '1px solid var(--border-subtle)',
               }}>
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">状态颜色说明</h4>
                 <div className="space-y-2 text-xs text-gray-500">
@@ -987,8 +1000,8 @@ export default function SettingsModal({
               <p className="text-sm text-gray-400 mb-4">配置Python Flask后端连接，启用数据持久化到Oracle数据库</p>
 
               <div className="rounded-xl p-4" style={{
-                background: 'rgba(0,0,0,0.2)',
-                border: '1px solid rgba(0,212,255,0.08)',
+                background: 'var(--bg-surface-alt)',
+                border: '1px solid var(--border-subtle)',
               }}>
                 <h4 className="text-sm font-bold text-white mb-3">运行模式</h4>
                 <div className="flex items-center gap-4">
@@ -1002,8 +1015,8 @@ export default function SettingsModal({
               </div>
 
               <div className="rounded-xl p-4" style={{
-                background: 'rgba(0,0,0,0.2)',
-                border: `1px solid ${localSettings.useBackend ? 'rgba(34,197,94,0.15)' : 'rgba(0,212,255,0.08)'}`,
+                background: 'var(--bg-surface-alt)',
+                border: `1px solid ${localSettings.useBackend ? 'rgba(34,197,94,0.15)' : 'var(--border-subtle)'}`,
               }}>
                 <h4 className="text-sm font-bold text-white mb-3">后端地址</h4>
                 <div className="flex gap-2">
@@ -1012,7 +1025,7 @@ export default function SettingsModal({
                     value={localSettings.backendUrl}
                     onChange={e => setLocalSettings({ ...localSettings, backendUrl: e.target.value })}
                     className="flex-1 px-3 py-2 rounded-lg text-sm text-white outline-none"
-                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+                    style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
                     placeholder="http://your-server:5000"
                   />
                   <button
@@ -1020,8 +1033,8 @@ export default function SettingsModal({
                     disabled={testingBackend}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
                     style={{
-                      background: 'rgba(0,212,255,0.1)',
-                      border: '1px solid rgba(0,212,255,0.2)',
+                      background: 'var(--accent-cyan-light)',
+                      border: '1px solid var(--border-strong)',
                       color: '#00d4ff',
                     }}
                   >
@@ -1062,7 +1075,7 @@ export default function SettingsModal({
               {/* Persistence info */}
               {localSettings.useBackend && (
                 <div className="rounded-xl p-4" style={{
-                  background: 'rgba(0,0,0,0.2)',
+                  background: 'var(--bg-surface-alt)',
                   border: '1px solid rgba(34,197,94,0.1)',
                 }}>
                   <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
@@ -1071,14 +1084,14 @@ export default function SettingsModal({
                   </h4>
                   <div className="space-y-2 text-xs text-gray-400">
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg p-3" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                      <div className="rounded-lg p-3" style={{ background: 'var(--bg-surface-alt)' }}>
                         <p className="text-gray-500 mb-1">持久化表</p>
                         <p className="font-mono text-[10px] text-cyan-400">ADG_STANDBY_CONFIG</p>
                         <p className="font-mono text-[10px] text-cyan-400">ADG_MONITOR_STATUS</p>
                         <p className="font-mono text-[10px] text-cyan-400">ADG_MONITOR_HISTORY</p>
                         <p className="font-mono text-[10px] text-cyan-400">ADG_SYSTEM_SETTINGS</p>
                       </div>
-                      <div className="rounded-lg p-3" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                      <div className="rounded-lg p-3" style={{ background: 'var(--bg-surface-alt)' }}>
                         <p className="text-gray-500 mb-1">历史数据统计</p>
                         {historyStats ? (
                           <>
@@ -1097,7 +1110,7 @@ export default function SettingsModal({
                       <button
                         onClick={fetchHistoryStats}
                         className="flex items-center gap-1 px-3 py-1.5 rounded text-[10px] font-semibold text-cyan-400 hover:bg-cyan-400/10 transition-all"
-                        style={{ border: '1px solid rgba(0,212,255,0.15)' }}
+                        style={{ border: '1px solid var(--border-default)' }}
                       >
                         <BarChart3 className="w-3 h-3" />
                         刷新统计
@@ -1115,10 +1128,15 @@ export default function SettingsModal({
                 </div>
               )}
 
-              <div className="flex justify-end">
+              <div className="flex items-center justify-end gap-3">
+                {saveMsg && (
+                  <span className={`text-xs ${saveMsg === '配置已保存' ? 'text-green-400' : 'text-red-400'}`}>
+                    {saveMsg === '配置已保存' ? '✓' : '✗'} {saveMsg}
+                  </span>
+                )}
                 <button onClick={handleSaveSettings}
                   className="flex items-center gap-1.5 px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:scale-105"
-                  style={{ background: 'linear-gradient(135deg, #0891b2, #6366f1)' }}>
+                  style={{ background: 'var(--btn-primary-bg)' }}>
                   <Save className="w-4 h-4" />
                   保存配置
                 </button>
@@ -1126,8 +1144,8 @@ export default function SettingsModal({
 
               {/* Deployment info */}
               <div className="rounded-xl p-4" style={{
-                background: 'rgba(0,0,0,0.15)',
-                border: '1px solid rgba(0,212,255,0.05)',
+                background: 'var(--bg-section)',
+                border: '1px solid var(--border-subtle)',
               }}>
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">后端部署步骤</h4>
                 <div className="space-y-1.5 text-[10px] text-gray-500 font-mono">
@@ -1156,8 +1174,8 @@ export default function SettingsModal({
               </p>
 
               <div className="rounded-xl p-4 max-w-md" style={{
-                background: 'rgba(0,0,0,0.2)',
-                border: '1px solid rgba(0,212,255,0.08)',
+                background: 'var(--bg-surface-alt)',
+                border: '1px solid var(--border-subtle)',
               }}>
                 <div className="space-y-3">
                   <div>
@@ -1167,7 +1185,7 @@ export default function SettingsModal({
                       value={oldPassword}
                       onChange={e => { setOldPassword(e.target.value); setPasswordMsg(''); }}
                       className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none"
-                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
                       placeholder="输入当前密码..."
                     />
                   </div>
@@ -1178,7 +1196,7 @@ export default function SettingsModal({
                       value={newPassword}
                       onChange={e => { setNewPassword(e.target.value); setPasswordMsg(''); }}
                       className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none"
-                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
                       placeholder="输入新密码 (至少4位)..."
                     />
                   </div>
@@ -1189,7 +1207,7 @@ export default function SettingsModal({
                       value={confirmPassword}
                       onChange={e => { setConfirmPassword(e.target.value); setPasswordMsg(''); }}
                       className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none"
-                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
                       placeholder="再次输入新密码..."
                     />
                   </div>
@@ -1202,7 +1220,7 @@ export default function SettingsModal({
                     onClick={handleChangePassword}
                     disabled={changingPassword}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:scale-105 disabled:opacity-50"
-                    style={{ background: 'linear-gradient(135deg, #0891b2, #6366f1)' }}
+                    style={{ background: 'var(--btn-primary-bg)' }}
                   >
                     <Shield className="w-4 h-4" />
                     {changingPassword ? '修改中...' : '修改密码'}
@@ -1229,7 +1247,7 @@ function InputField({ label, value, onChange, placeholder, type = 'text' }: {
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none transition-all focus:ring-1 focus:ring-cyan-500/50"
-        style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)' }}
+        style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AppSettings, StandbyStatus } from '../types';
-import { Database, LogOut, Settings, RefreshCw, Clock, Activity } from 'lucide-react';
+import { useTheme } from '../utils/theme';
+import { Database, LogOut, Settings, RefreshCw, Clock, Activity, Sun, Moon } from 'lucide-react';
 
 interface HeaderProps {
   settings: AppSettings;
@@ -21,6 +22,7 @@ export default function Header({
   onRefreshIntervalChange,
   collecting,
 }: HeaderProps) {
+  const { theme, toggle: toggleTheme } = useTheme();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -46,9 +48,9 @@ export default function Header({
     <header className="relative z-20">
       <div className="px-4 py-2"
         style={{
-          background: 'linear-gradient(180deg, rgba(10,14,39,0.98), rgba(13,27,62,0.95))',
-          borderBottom: '1px solid rgba(0,212,255,0.15)',
-          boxShadow: '0 4px 30px rgba(0,0,0,0.3)',
+          background: 'var(--bg-header)',
+          borderBottom: '1px solid var(--border-default)',
+          boxShadow: 'var(--shadow-card)',
         }}>
         {/* Top status bar */}
         <div className="flex items-center justify-between text-xs text-gray-400 mb-1 px-1">
@@ -99,8 +101,8 @@ export default function Header({
             {/* Refresh interval selector */}
             <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg"
               style={{
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(0,212,255,0.15)',
+                background: 'var(--bg-surface-dim)',
+                border: '1px solid var(--border-default)',
               }}>
               <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${collecting ? 'animate-spin' : ''}`} />
               <select
@@ -122,8 +124,8 @@ export default function Header({
               onClick={onManualRefresh}
               className="p-2 rounded-lg text-gray-400 hover:text-cyan-400 transition-all duration-200 hover:scale-105"
               style={{
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(0,212,255,0.15)',
+                background: 'var(--bg-surface-dim)',
+                border: '1px solid var(--border-default)',
               }}
               title="手动刷新"
             >
@@ -135,12 +137,25 @@ export default function Header({
               onClick={onOpenSettings}
               className="p-2 rounded-lg text-gray-400 hover:text-cyan-400 transition-all duration-200 hover:scale-105"
               style={{
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(0,212,255,0.15)',
+                background: 'var(--bg-surface-dim)',
+                border: '1px solid var(--border-default)',
               }}
               title="设置"
             >
               <Settings className="w-4 h-4" />
+            </button>
+
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-gray-400 hover:text-cyan-400 transition-all duration-200 hover:scale-105"
+              style={{
+                background: 'var(--bg-surface-dim)',
+                border: '1px solid var(--border-default)',
+              }}
+              title={theme === 'dark' ? '切换浅色模式' : '切换深色模式'}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
             {/* Logout button */}
@@ -148,7 +163,7 @@ export default function Header({
               onClick={onLogout}
               className="p-2 rounded-lg text-gray-400 hover:text-red-400 transition-all duration-200 hover:scale-105"
               style={{
-                background: 'rgba(0,0,0,0.3)',
+                background: 'var(--bg-surface-dim)',
                 border: '1px solid rgba(255,100,100,0.15)',
               }}
               title="退出登录"

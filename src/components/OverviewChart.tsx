@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, Brush, Legend
 } from 'recharts';
 import { formatLag } from '../store';
+import { useChartTheme } from '../utils/useChartTheme';
 import { ZoomIn, ZoomOut, Maximize2, TrendingUp } from 'lucide-react';
 
 interface OverviewChartProps {
@@ -23,6 +24,7 @@ export default function OverviewChart({ history, statuses, dbNames }: OverviewCh
   const [brushRange, setBrushRange] = useState<{ startIndex?: number; endIndex?: number }>({});
   const [chartKey, setChartKey] = useState(0);
   const btnZoomRef = useRef(false);
+  const c = useChartTheme();
 
   const dbIds = Object.keys(statuses);
 
@@ -95,8 +97,8 @@ export default function OverviewChart({ history, statuses, dbNames }: OverviewCh
   if (chartData.length === 0) {
     return (
       <div className="rounded-xl p-6" style={{
-        background: 'linear-gradient(135deg, rgba(13,27,62,0.6), rgba(10,22,40,0.8))',
-        border: '1px solid rgba(0,212,255,0.1)',
+        background: 'var(--bg-card-alt)',
+        border: '1px solid var(--border-default)',
       }}>
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp className="w-5 h-5 text-cyan-400" />
@@ -113,8 +115,8 @@ export default function OverviewChart({ history, statuses, dbNames }: OverviewCh
     if (active && payload && payload.length) {
       return (
         <div className="rounded-lg p-3 text-xs" style={{
-          background: 'rgba(10,14,39,0.95)',
-          border: '1px solid rgba(0,212,255,0.3)',
+          background: c.tooltipBg,
+          border: `1px solid ${c.tooltipBorder}`,
           boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
           maxWidth: '250px',
         }}>
@@ -138,8 +140,8 @@ export default function OverviewChart({ history, statuses, dbNames }: OverviewCh
 
   return (
     <div className="rounded-xl p-4" style={{
-      background: 'linear-gradient(135deg, rgba(13,27,62,0.6), rgba(10,22,40,0.8))',
-      border: '1px solid rgba(0,212,255,0.1)',
+      background: 'var(--bg-card-alt)',
+      border: '1px solid var(--border-default)',
     }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -165,17 +167,17 @@ export default function OverviewChart({ history, statuses, dbNames }: OverviewCh
 
       <ResponsiveContainer width="100%" height={350}>
         <LineChart data={chartData} key={chartKey}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <CartesianGrid strokeDasharray="3 3" stroke={c.gridStroke} />
           <XAxis
             dataKey="time"
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+            tick={{ fill: c.axisTickFill, fontSize: 10 }}
+            tickLine={{ stroke: c.axisLineStroke }}
+            axisLine={{ stroke: c.axisLineStroke }}
           />
           <YAxis
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+            tick={{ fill: c.axisTickFill, fontSize: 10 }}
+            tickLine={{ stroke: c.axisLineStroke }}
+            axisLine={{ stroke: c.axisLineStroke }}
             tickFormatter={v => {
               if (v >= 3600) return Math.floor(v / 3600) + 'h';
               if (v >= 60) return Math.floor(v / 60) + 'm';
@@ -206,8 +208,8 @@ export default function OverviewChart({ history, statuses, dbNames }: OverviewCh
           <Brush
             dataKey="time"
             height={30}
-            stroke="rgba(0,212,255,0.3)"
-            fill="rgba(0,0,0,0.5)"
+            stroke={c.brushStroke}
+            fill={c.brushFill}
             travellerWidth={8}
             startIndex={brushRange.startIndex}
             endIndex={brushRange.endIndex}

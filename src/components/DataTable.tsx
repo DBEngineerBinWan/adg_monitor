@@ -52,12 +52,12 @@ export default function DataTable({ databases, statuses, healthFilter, searchQue
 
   return (
     <div className="overflow-x-auto rounded-xl" style={{
-      background: 'linear-gradient(135deg, rgba(13,27,62,0.6), rgba(10,22,40,0.8))',
-      border: '1px solid rgba(0,212,255,0.1)',
+      background: 'var(--bg-card-alt)',
+      border: '1px solid var(--border-default)',
     }}>
       <table className="w-full text-sm">
         <thead>
-          <tr style={{ borderBottom: '1px solid rgba(0,212,255,0.15)' }}>
+          <tr style={{ borderBottom: '1px solid var(--border-default)' }}>
             <Th>DB名称</Th>
             <Th>主机地址</Th>
             <Th>角色</Th>
@@ -77,7 +77,7 @@ export default function DataTable({ databases, statuses, healthFilter, searchQue
                 key={db.id}
                 onClick={() => onSelectDb(db.id)}
                 className="cursor-pointer transition-colors hover:bg-white/5"
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+                style={{ borderBottom: '1px solid var(--border-white-subtle)' }}
               >
                 <Td>
                   <div className="flex items-center gap-2">

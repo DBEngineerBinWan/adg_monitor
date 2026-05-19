@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, Brush, ReferenceLine
 } from 'recharts';
 import { formatLag } from '../store';
+import { useChartTheme } from '../utils/useChartTheme';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 interface TrendChartProps {
@@ -17,6 +18,7 @@ export default function TrendChart({ history, dbName }: TrendChartProps) {
   const [chartKey, setChartKey] = useState(0);
   const btnZoomRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const c = useChartTheme();
 
   const chartData = useMemo(() => {
     if (history.length === 0) return [];
@@ -90,22 +92,22 @@ export default function TrendChart({ history, dbName }: TrendChartProps) {
     if (active && payload && payload.length) {
       return (
         <div className="rounded-lg p-3 text-xs" style={{
-          background: 'rgba(10,14,39,0.95)',
-          border: '1px solid rgba(0,212,255,0.3)',
+          background: c.tooltipBg,
+          border: `1px solid ${c.tooltipBorder}`,
           boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
         }}>
           <p className="text-gray-400 mb-1.5 font-mono">{payload[0]?.payload?.fullTime}</p>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span className="w-2 h-2 rounded-full" style={{ background: c.applyStroke }} />
               <span className="text-gray-400">应用延时:</span>
-              <span className="text-cyan-400 font-bold font-mono">{formatLag(payload[0]?.value || 0)}</span>
+              <span className="font-bold font-mono" style={{ color: c.applyStroke }}>{formatLag(payload[0]?.value || 0)}</span>
             </div>
             {payload[1] && (
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-400" />
+                <span className="w-2 h-2 rounded-full" style={{ background: c.transportStroke }} />
                 <span className="text-gray-400">传输延时:</span>
-                <span className="text-purple-400 font-bold font-mono">{formatLag(payload[1]?.value || 0)}</span>
+                <span className="font-bold font-mono" style={{ color: c.transportStroke }}>{formatLag(payload[1]?.value || 0)}</span>
               </div>
             )}
           </div>
@@ -152,59 +154,59 @@ export default function TrendChart({ history, dbName }: TrendChartProps) {
         <ComposedChart data={chartData} key={chartKey}>
           <defs>
             <linearGradient id={`applyGrad_${dbName}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
+              <stop offset="5%" stopColor={c.applyStopColor1} stopOpacity={1} />
+              <stop offset="95%" stopColor={c.applyStopColor2} stopOpacity={1} />
             </linearGradient>
             <linearGradient id={`transportGrad_${dbName}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#a855f7" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+              <stop offset="5%" stopColor={c.transportStopColor1} stopOpacity={1} />
+              <stop offset="95%" stopColor={c.transportStopColor2} stopOpacity={1} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <CartesianGrid strokeDasharray="3 3" stroke={c.gridStroke} />
           <XAxis
             dataKey="time"
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+            tick={{ fill: c.axisTickFill, fontSize: 10 }}
+            tickLine={{ stroke: c.axisLineStroke }}
+            axisLine={{ stroke: c.axisLineStroke }}
           />
           <YAxis
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+            tick={{ fill: c.axisTickFill, fontSize: 10 }}
+            tickLine={{ stroke: c.axisLineStroke }}
+            axisLine={{ stroke: c.axisLineStroke }}
             tickFormatter={(v) => {
               if (v >= 3600) return Math.floor(v / 3600) + 'h';
               if (v >= 60) return Math.floor(v / 60) + 'm';
               return v + 's';
             }}
-            label={{ value: '延时(秒)', angle: -90, position: 'insideLeft', fill: '#6b7280', fontSize: 10 }}
+            label={{ value: '延时(秒)', angle: -90, position: 'insideLeft', fill: c.axisTickFill, fontSize: 10 }}
           />
           <Tooltip content={<CustomTooltip />} />
-          <ReferenceLine y={300} stroke="rgba(234,179,8,0.3)" strokeDasharray="5 5" label={{ value: '警告线', fill: '#eab308', fontSize: 10, position: 'right' }} />
-          <ReferenceLine y={1800} stroke="rgba(239,68,68,0.3)" strokeDasharray="5 5" label={{ value: '危险线', fill: '#ef4444', fontSize: 10, position: 'right' }} />
+          <ReferenceLine y={300} stroke={c.warningLineStroke} strokeDasharray="5 5" label={{ value: '警告线', fill: '#eab308', fontSize: 10, position: 'right' }} />
+          <ReferenceLine y={1800} stroke={c.dangerLineStroke} strokeDasharray="5 5" label={{ value: '危险线', fill: '#ef4444', fontSize: 10, position: 'right' }} />
           <Area
             type="monotone"
             dataKey="applyLag"
-            stroke="#00d4ff"
+            stroke={c.applyStroke}
             strokeWidth={2}
             fill={`url(#applyGrad_${dbName})`}
             name="应用延时"
             dot={false}
-            activeDot={{ r: 4, stroke: '#00d4ff', strokeWidth: 2, fill: '#0a0e27' }}
+            activeDot={{ r: 4, stroke: c.applyStroke, strokeWidth: 2, fill: c.activeDotFill }}
           />
           <Line
             type="monotone"
             dataKey="transportLag"
-            stroke="#a855f7"
+            stroke={c.transportStroke}
             strokeWidth={1.5}
             dot={false}
             name="传输延时"
-            activeDot={{ r: 3, stroke: '#a855f7', strokeWidth: 2, fill: '#0a0e27' }}
+            activeDot={{ r: 3, stroke: c.transportStroke, strokeWidth: 2, fill: c.activeDotFill }}
           />
           <Brush
             dataKey="time"
             height={30}
-            stroke="rgba(0,212,255,0.3)"
-            fill="rgba(0,0,0,0.5)"
+            stroke={c.brushStroke}
+            fill={c.brushFill}
             travellerWidth={8}
             startIndex={brushRange.startIndex}
             endIndex={brushRange.endIndex}
@@ -214,8 +216,8 @@ export default function TrendChart({ history, dbName }: TrendChartProps) {
               <Area
                 type="monotone"
                 dataKey="applyLag"
-                stroke="#00d4ff"
-                fill="rgba(0,212,255,0.1)"
+                stroke={c.applyStroke}
+                fill={c.accentBg}
                 strokeWidth={1}
                 dot={false}
               />
