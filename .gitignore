@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .claude/
 .gstack/
+.idea/
 *.log
 .env
 node_modules
