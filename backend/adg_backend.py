@@ -151,6 +151,7 @@ def get_stored_password_data(cursor):
             SET SETTING_VALUE = :val, UPDATED_AT = SYSTIMESTAMP
             WHERE SETTING_KEY = 'login_password'
         """, {'val': new_value})
+        cursor.connection.commit()
         print(f"  [INFO] 明文密码已自动迁移为 PBKDF2 哈希")
     except Exception:
         pass
