@@ -703,7 +703,8 @@ def get_alert_config():
 def send_webhook_alert(db_id, db_name, db_config, old_status, new_status, result):
     """发送 Webhook 告警（带冷却，不阻塞采集）"""
     config = get_alert_config()
-    if not config.get('enabled') or not config.get('webhook_url'):
+    url = config.get('webhookUrl') or config.get('webhook_url', '')
+    if not config.get('enabled') or not url:
         return
 
     cooldown = int(config.get('cooldown_minutes', 30))
@@ -731,7 +732,7 @@ def send_webhook_alert(db_id, db_name, db_config, old_status, new_status, result
     try:
         data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
         req = urllib.request.Request(
-            config['webhook_url'],
+            url,
             data=data,
             headers={'Content-Type': 'application/json; charset=utf-8'},
             method='POST',
@@ -1911,6 +1912,39 @@ def update_settings():
 
 
 # ---------- 清理历史 ----------
+
+@app.route('/api/alert/test', methods=['POST'])
+def test_alert():
+    """发送测试告警"""
+    config = get_alert_config()
+    url = config.get('webhookUrl') or config.get('webhook_url', '')
+    if not config.get('enabled') or not url:
+        return jsonify({'success': False, 'message': '告警未启用或未配置 Webhook URL'})
+    payload = {
+        'event': 'test',
+        'db_name': 'TEST_DB',
+        'db_host': 'localhost',
+        'old_status': 'green',
+        'new_status': 'red',
+        'apply_lag_seconds': 3600,
+        'transport_lag_seconds': 300,
+        'mrp_status': 'APPLYING_LOG',
+        'error': None,
+        'timestamp': datetime.now().isoformat(),
+    }
+    try:
+        data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={'Content-Type': 'application/json; charset=utf-8'},
+            method='POST',
+        )
+        urllib.request.urlopen(req, timeout=5)
+        return jsonify({'success': True, 'message': '测试告警已发送'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'测试告警发送失败: {e}'})
+
 
 @app.route('/api/history/cleanup', methods=['POST'])
 def manual_cleanup():

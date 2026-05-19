@@ -1125,6 +1125,26 @@ export default function SettingsModal({
                     />
                     <p className="text-[10px] text-gray-600 mt-1">同一备库同一状态在此时间内不会重复推送</p>
                   </div>
+                  <button
+                    onClick={async () => {
+                      const url = localSettings.backendUrl;
+                      if (!url) return;
+                      try {
+                        const res = await fetch(`${url}/api/alert/test`, { method: 'POST' });
+                        const d = await res.json();
+                        alert(d.message || (d.success ? '测试告警已发送' : '发送失败'));
+                      } catch { alert('请求失败，请检查后端是否运行'); }
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:scale-105"
+                    style={{
+                      background: 'rgba(234,179,8,0.1)',
+                      border: '1px solid rgba(234,179,8,0.2)',
+                      color: '#eab308',
+                    }}
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    测试推送
+                  </button>
                 </div>
               </div>
 
