@@ -31,7 +31,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<'cards' | 'table'>('cards');
   const [healthFilter, setHealthFilter] = useState<HealthStatus | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const collectionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initialLoadingRef = useRef(false);
@@ -157,27 +156,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setTimeout(() => setCollecting(false), 500);
   }, []);
 
-  // Auto collection timer — only refresh persisted data (backend collects independently)
-  useEffect(() => {
-    if (collectionTimerRef.current) {
-      clearInterval(collectionTimerRef.current);
-      collectionTimerRef.current = null;
-    }
-
-    if (settings.collectionConfig.enabled && settings.collectionConfig.intervalSeconds >= 10) {
-      refreshData();
-      collectionTimerRef.current = setInterval(
-        refreshData,
-        settings.collectionConfig.intervalSeconds * 1000
-      );
-    }
-
-    return () => {
-      if (collectionTimerRef.current) clearInterval(collectionTimerRef.current);
-    };
-  }, [settings.collectionConfig.enabled, settings.collectionConfig.intervalSeconds, refreshData]);
-
-  // Auto refresh timer (user-defined interval for manual refresh rate)
+  // Auto refresh timer (user-defined interval from Header dropdown)
+  // Only pull persisted data without triggering backend collection.
+  // Backend AutoCollector handles collection independently.
   useEffect(() => {
     if (refreshTimerRef.current) {
       clearInterval(refreshTimerRef.current);
@@ -185,6 +166,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
 
     if (settings.refreshInterval > 0) {
+      refreshData();
       refreshTimerRef.current = setInterval(() => {
         refreshData();
       }, settings.refreshInterval * 1000);
