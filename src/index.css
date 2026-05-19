@@ -249,3 +249,72 @@ select option {
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
+
+/* ============================================================
+   状态指示器 — 环状脉冲
+   ============================================================ */
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* 外环 */
+.status-dot-ring {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 内芯 */
+.status-dot-core {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* 正常 — 柔和呼吸 */
+.status-dot-green .status-dot-ring {
+  color: #22c55e;
+}
+.status-dot-green .status-dot-core {
+  animation: dot-breathe 2s ease-in-out infinite;
+}
+
+/* 警告 — 间歇闪烁 */
+.status-dot-yellow .status-dot-ring {
+  color: #eab308;
+}
+.status-dot-yellow .status-dot-core {
+  animation: dot-blink 1.5s ease-in-out infinite;
+}
+
+/* 异常 — 快速脉冲 + 外环常亮 */
+.status-dot-red .status-dot-ring {
+  color: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+.status-dot-red .status-dot-core {
+  animation: dot-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes dot-breathe {
+  0%, 100% { opacity: 0.6; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.7; }
+}

@@ -1,5 +1,6 @@
 import { StandbyStatus, HistoryRecord } from '../types';
 import { formatLag } from '../store';
+import StatusDot from './StatusDot';
 import { X, Server, Database, Activity, Clock, Shield, TrendingUp } from 'lucide-react';
 import TrendChart from './TrendChart';
 
@@ -56,7 +57,7 @@ export default function DetailModal({ status, history, historyHours, onHistoryHo
             borderBottom: '1px solid var(--border-default)',
           }}>
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full" style={{ background: statusColor, boxShadow: `0 0 10px ${statusColor}` }} />
+            <StatusDot status={status.healthStatus} />
             <Server className="w-5 h-5 text-cyan-400" />
             <h2 className="text-xl font-bold text-white">{status.dbName} - 详细信息</h2>
           </div>

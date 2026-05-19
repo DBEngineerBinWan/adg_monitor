@@ -1,5 +1,6 @@
 import { StandbyStatus, HealthStatus } from '../types';
 import { formatLag } from '../store';
+import StatusDot from './StatusDot';
 import { Server, Clock } from 'lucide-react';
 
 interface DataTableProps {
@@ -110,7 +111,7 @@ export default function DataTable({ databases, statuses, healthFilter, searchQue
                 <Td className="font-mono text-gray-300">{formatLag(status.transportLagSeconds)}</Td>
                 <Td>
                   <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                    <StatusDot status={status.healthStatus} size="sm" />
                     <span className={`text-xs font-semibold ${cfg.text}`}>
                       {status.healthStatus === 'green' ? '正常' :
                        status.healthStatus === 'yellow' ? '警告' : '异常'}

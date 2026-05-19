@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AppSettings, StandbyStatus } from '../types';
 import { useTheme } from '../utils/theme';
+import StatusDot from './StatusDot';
 import { Database, LogOut, Settings, RefreshCw, Clock, Activity, Sun, Moon } from 'lucide-react';
 
 interface HeaderProps {
@@ -56,7 +57,7 @@ export default function Header({
         <div className="flex items-center justify-between text-xs text-gray-400 mb-1 px-1">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <StatusDot status="green" size="sm" />
               监控中
             </span>
             <span>备库总数: <span className="text-cyan-400 font-mono">{statusList.length}</span></span>

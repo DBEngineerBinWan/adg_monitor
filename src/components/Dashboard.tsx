@@ -14,6 +14,7 @@ import DetailModal from './DetailModal';
 import SettingsModal from './SettingsModal';
 import OverviewChart from './OverviewChart';
 import DataTable from './DataTable';
+import StatusDot from './StatusDot';
 import { RefreshCw, LayoutGrid, List, Search, X } from 'lucide-react';
 
 interface DashboardProps {
@@ -352,7 +353,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           isActive ? 'bg-white/10 ring-1 ring-white/20' : 'hover:bg-white/5'
                         }`}
                       >
-                        <span className={`w-3 h-3 rounded-full ${c.dot} shadow-lg`} />
+                        <StatusDot status={status} />
                         <span className="text-gray-400">{c.label}</span>
                         <span className={`text-xl font-bold font-mono ${c.text}`}>{count}</span>
                       </button>

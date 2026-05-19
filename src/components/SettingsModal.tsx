@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AppSettings, StandbyDatabase } from '../types';
 import { generateId, getPassword, setPassword, testConnectionViaBackend, getSettings, changePasswordViaBackend, batchImportDatabases, batchDeleteDatabases } from '../store';
+import StatusDot from './StatusDot';
 import { X, Plus, Trash2, Settings, Database, Shield, Clock, Save, Server, Edit2, Wifi, CheckCircle, XCircle, Loader2, Globe, HardDrive, BarChart3, FileUp, Download, AlertCircle } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -976,17 +977,17 @@ export default function SettingsModal({
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">状态颜色说明</h4>
                 <div className="space-y-2 text-xs text-gray-500">
                   <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-green-500" />
+                    <StatusDot status="green" />
                     <span className="font-semibold text-green-400">绿色</span>
                     <span>- MRP状态为APPLYING_LOG或WAIT_FOR_LOG，且延时 ≤ 黄色阈值</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                    <StatusDot status="yellow" />
                     <span className="font-semibold text-yellow-400">黄色</span>
                     <span>- MRP状态正常，但延时 &gt; 黄色阈值 且 ≤ 红色阈值</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-red-500" />
+                    <StatusDot status="red" />
                     <span className="font-semibold text-red-400">红色</span>
                     <span>- MRP状态异常(ERROR/NOT_FOUND/WAIT_FOR_GAP等) 或延时 &gt; 红色阈值</span>
                   </div>

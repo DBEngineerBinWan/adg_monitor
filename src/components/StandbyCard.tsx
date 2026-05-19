@@ -1,5 +1,6 @@
 import { StandbyStatus } from '../types';
 import { formatLag } from '../store';
+import StatusDot from './StatusDot';
 import { Server, Activity, Clock, AlertTriangle, CheckCircle, XCircle, Eye } from 'lucide-react';
 
 interface StandbyCardProps {
@@ -85,7 +86,7 @@ export default function StandbyCard({ status, onClick }: StandbyCardProps) {
           </div>
           <div className="flex items-center gap-1.5">
             <StatusIcon className={`w-4 h-4 ${colors.text}`} />
-            <div className={`w-2.5 h-2.5 rounded-full ${colors.badge} ${status.healthStatus === 'green' ? 'animate-pulse' : status.healthStatus === 'red' ? 'animate-pulse' : ''}`} />
+            <StatusDot status={status.healthStatus} />
           </div>
         </div>
 
