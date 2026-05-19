@@ -41,7 +41,9 @@ import argparse
 import hashlib
 import secrets
 import base64
-from datetime import datetime, timedelta
+import urllib.request
+import urllib.error
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from cryptography.fernet import Fernet
@@ -271,6 +273,10 @@ _settings_cache_lock = threading.Lock()
 # 采集互斥锁（防止自动采集和手动采集并发执行）
 _collecting = False
 _collecting_lock = threading.Lock()
+
+# 告警冷却（db_id → 上次告警时间戳）
+_alert_cooldown = {}
+_alert_cooldown_lock = threading.Lock()
 
 
 def init_oracle_client():
@@ -680,6 +686,63 @@ def set_setting(key, value):
 
 
 # ============================================================================
+# 告警推送
+# ============================================================================
+
+def get_alert_config():
+    """获取告警配置（60秒缓存）"""
+    raw = get_setting('alert_config', None)
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
+    return {'enabled': False, 'webhook_url': '', 'cooldown_minutes': 30}
+
+
+def send_webhook_alert(db_id, db_name, db_config, old_status, new_status, result):
+    """发送 Webhook 告警（带冷却，不阻塞采集）"""
+    config = get_alert_config()
+    if not config.get('enabled') or not config.get('webhook_url'):
+        return
+
+    cooldown = int(config.get('cooldown_minutes', 30))
+    with _alert_cooldown_lock:
+        key = f"{db_id}:{new_status}"
+        last_time = _alert_cooldown.get(key)
+        now_ts = time.time()
+        if last_time and (now_ts - last_time) < cooldown * 60:
+            return  # 冷却中，跳过
+        _alert_cooldown[key] = now_ts
+
+    payload = {
+        'event': 'health_change',
+        'db_name': db_name,
+        'db_host': db_config.get('host', ''),
+        'old_status': old_status,
+        'new_status': new_status,
+        'apply_lag_seconds': result.get('apply_lag_seconds', 0),
+        'transport_lag_seconds': result.get('transport_lag_seconds', 0),
+        'mrp_status': result.get('mrp_status', 'NOT_FOUND'),
+        'error': result.get('error'),
+        'timestamp': datetime.now().isoformat(),
+    }
+
+    try:
+        data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        req = urllib.request.Request(
+            config['webhook_url'],
+            data=data,
+            headers={'Content-Type': 'application/json; charset=utf-8'},
+            method='POST',
+        )
+        urllib.request.urlopen(req, timeout=5)
+        print(f"[ALERT] 告警已发送: {db_name} {old_status} → {new_status}")
+    except Exception as e:
+        print(f"[ALERT] 告警发送失败 ({db_name}): {e}")
+
+
+# ============================================================================
 # SQL查询 - 严格基于Oracle官方文档
 # ============================================================================
 
@@ -892,6 +955,19 @@ def persist_status(db_id, db_name, db_config, query_result):
         now = datetime.now()
         di = query_result.get('database_info', {})
 
+        # ---- 查询旧状态（用于告警检测） ----
+        old_health = None
+        try:
+            cursor.execute(
+                "SELECT HEALTH_STATUS FROM ADG_MONITOR_STATUS WHERE DB_ID = :1",
+                [db_id]
+            )
+            old_row = cursor.fetchone()
+            if old_row and old_row[0]:
+                old_health = str(old_row[0])
+        except Exception:
+            pass
+
         # ---- MERGE到状态表 ----
         cursor.execute("""
             MERGE INTO ADG_MONITOR_STATUS t
@@ -973,6 +1049,11 @@ def persist_status(db_id, db_name, db_config, query_result):
         conn.commit()
         cursor.close()
         conn.close()
+
+        # ---- 检测状态变化并发送告警 ----
+        new_health = query_result.get('health_status', 'red')
+        if old_health and old_health != new_health:
+            send_webhook_alert(db_id, db_name, db_config, old_health, new_health, query_result)
 
     except Exception as e:
         print(f"[ERROR] 持久化失败 ({db_name}): {e}")

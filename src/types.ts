@@ -99,10 +99,17 @@ export interface CollectionConfig {
   redThresholdSeconds: number;     // lag > this => red
 }
 
+export interface AlertConfig {
+  enabled: boolean;
+  webhookUrl: string;
+  cooldownMinutes: number;
+}
+
 export interface AppSettings {
   refreshInterval: number; // 0 = manual, otherwise seconds
   idleTimeoutMinutes: number;
   collectionConfig: CollectionConfig;
+  alertConfig: AlertConfig;
   backendUrl: string; // Backend API URL
   useBackend: boolean; // Whether to use real backend
 }

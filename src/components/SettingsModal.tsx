@@ -1073,6 +1073,61 @@ export default function SettingsModal({
                 )}
               </div>
 
+              {/* Alert push config */}
+              <div className="rounded-xl p-4" style={{
+                background: 'var(--bg-surface-alt)',
+                border: '1px solid var(--border-subtle)',
+              }}>
+                <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-yellow-400" />
+                  告警推送
+                </h4>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={localSettings.alertConfig?.enabled ?? false}
+                      onChange={e => setLocalSettings({
+                        ...localSettings,
+                        alertConfig: { ...(localSettings.alertConfig || { enabled: false, webhookUrl: '', cooldownMinutes: 30 }), enabled: e.target.checked }
+                      })}
+                      className="accent-cyan-500"
+                    />
+                    启用告警推送
+                  </label>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Webhook URL</label>
+                    <input
+                      type="text"
+                      value={localSettings.alertConfig?.webhookUrl ?? ''}
+                      onChange={e => setLocalSettings({
+                        ...localSettings,
+                        alertConfig: { ...(localSettings.alertConfig || { enabled: false, webhookUrl: '', cooldownMinutes: 30 }), webhookUrl: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none"
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
+                      placeholder="https://your-monitor.example.com/webhook"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">冷却时间 (分钟)</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={1440}
+                      value={localSettings.alertConfig?.cooldownMinutes ?? 30}
+                      onChange={e => setLocalSettings({
+                        ...localSettings,
+                        alertConfig: { ...(localSettings.alertConfig || { enabled: false, webhookUrl: '', cooldownMinutes: 30 }), cooldownMinutes: parseInt(e.target.value) || 30 }
+                      })}
+                      className="w-32 px-3 py-2 rounded-lg text-sm text-white outline-none"
+                      style={{ background: 'var(--bg-surface-dim)', border: '1px solid var(--border-default)' }}
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1">同一备库同一状态在此时间内不会重复推送</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Persistence info */}
               {localSettings.useBackend && (
                 <div className="rounded-xl p-4" style={{

@@ -23,6 +23,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     yellowThresholdSeconds: 300,
     redThresholdSeconds: 1800,
   },
+  alertConfig: {
+    enabled: false,
+    webhookUrl: '',
+    cooldownMinutes: 30,
+  },
 };
 
 // Password management
@@ -420,6 +425,7 @@ export async function saveSettingsToBackend(backendUrl: string, settings: AppSet
           yellow_threshold: settings.collectionConfig.yellowThresholdSeconds.toString(),
           red_threshold: settings.collectionConfig.redThresholdSeconds.toString(),
           auto_collect_enabled: settings.collectionConfig.enabled ? '1' : '0',
+          alert_config: JSON.stringify(settings.alertConfig),
         }
       }),
     });
