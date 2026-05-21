@@ -134,8 +134,20 @@ tools/
 |------|------|
 | `ADG_STANDBY_CONFIG` | 备库连接配置 (密码 Fernet 加密) |
 | `ADG_MONITOR_STATUS` | 最新监控快照 (MERGE INTO 更新，含 CLOB) |
-| `ADG_MONITOR_HISTORY` | 历史记录 (每次采集 INSERT) |
+| `ADG_MONITOR_HISTORY` | 历史记录 (每次采集 INSERT，按月 RANGE 分区) |
 | `ADG_SYSTEM_SETTINGS` | 系统设置 (含 login_password、encryption_key、alert_config JSON) |
+
+### ADG_MONITOR_HISTORY 分区设计
+
+历史表按 `COLLECT_TIME` 做 **RANGE 按月分区**：
+
+- **12c+**: 使用 `INTERVAL (NUMTOYMINTERVAL(1, 'MONTH'))` 自动创建月度分区，初始分区 `p_hist_init` 作为过渡点
+- **11g**: 预创建 24 个月命名分区 `p_YYYYMM` + `p_maxval` 兜底，需定期维护添加新分区
+- **PK/索引**: `ID` 为全局主键，`IDX_HISTORY_DBID_TIME` 和 `IDX_HISTORY_TIME` 为 LOCAL 分区索引
+- **新安装**: `--init-db` 直接创建分区表（COLLECT_TIME 有 NOT NULL 约束）
+- **已有安装**: 手动执行 `backend/sql/03_migrate_12c_online.sql` 在线转换
+- **历史清理**: `cleanup_old_history()` 先尝试 `DROP PARTITION ... UPDATE GLOBAL INDEXES`（整月删除），再对边界分区用 DELETE — 比全表 DELETE 高效数个数量级
+- **独立 SQL 脚本**: 见 `backend/sql/` — `01_create_history_12c.sql` / `02_create_history_11g.sql` / `03_migrate_12c_online.sql` / `04_migrate_manual.sql` / `05_cleanup_partitions.sql`
 
 ### REST API 端点
 

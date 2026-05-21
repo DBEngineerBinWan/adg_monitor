@@ -323,6 +323,42 @@ def get_remote_connection(host, port, service_name, username, password):
 
 
 # ============================================================================
+# 表结构 DDL 辅助函数 (必须在 DDL_STATEMENTS 之前定义，f-string 会立即求值)
+# ============================================================================
+
+def _get_next_month_first():
+    """返回下个月第一天，格式 'YYYY-MM-DD'，用于建表时的初始分区分界点"""
+    from datetime import datetime
+    today = datetime.now()
+    if today.month == 12:
+        next_month = today.replace(year=today.year + 1, month=1, day=1)
+    else:
+        next_month = today.replace(month=today.month + 1, day=1)
+    return next_month.strftime('%Y-%m-%d')
+
+
+def _gen_11g_partition_clauses():
+    """为 Oracle 11g 生成 24 个月 + MAXVALUE 的分区定义"""
+    from datetime import datetime
+    lines = []
+    today = datetime.now()
+    start_month = today.month
+    start_year = today.year
+    for i in range(24):
+        m = start_month + i
+        y = start_year + (m - 1) // 12
+        m = (m - 1) % 12 + 1
+        if m == 12:
+            bound = f"{y + 1}-01-01"
+        else:
+            bound = f"{y}-{m + 1:02d}-01"
+        label = f"p_{y}{m:02d}"
+        lines.append(f"        PARTITION {label} VALUES LESS THAN (TIMESTAMP '{bound} 00:00:00')")
+    lines.append("        PARTITION p_maxval VALUES LESS THAN (MAXVALUE)")
+    return ',\n'.join(lines)
+
+
+# ============================================================================
 # 表结构定义 + 初始化
 # ============================================================================
 
@@ -369,19 +405,21 @@ DDL_STATEMENTS = [
     )
     """,
 
-    # ---- 3. 历史记录表 (趋势图数据) ----
-    """
+    # ---- 3. 历史记录表 (趋势图数据，按月分区) ----
+    f"""
     CREATE TABLE ADG_MONITOR_HISTORY (
         ID                    NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         DB_ID                 VARCHAR2(64)   NOT NULL,
-        COLLECT_TIME          TIMESTAMP      DEFAULT SYSTIMESTAMP,
+        COLLECT_TIME          TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
         APPLY_LAG_SECONDS     NUMBER(10)     DEFAULT 0,
         TRANSPORT_LAG_SECONDS NUMBER(10)     DEFAULT 0,
         MRP_STATUS            VARCHAR2(32),
         HEALTH_STATUS         VARCHAR2(10),
         APPLY_LAG             VARCHAR2(64),
         TRANSPORT_LAG         VARCHAR2(64)
-    )
+    ) PARTITION BY RANGE (COLLECT_TIME)
+    INTERVAL (NUMTOYMINTERVAL(1, 'MONTH'))
+    (PARTITION p_hist_init VALUES LESS THAN (TIMESTAMP '{_get_next_month_first()}:00:00:00'))
     """,
 
     # ---- 4. 系统设置表 ----
@@ -393,13 +431,13 @@ DDL_STATEMENTS = [
     )
     """,
 
-    # ---- 5. 历史表索引 ----
+    # ---- 5. 历史表索引 (本地分区索引) ----
     """
-    CREATE INDEX IDX_HISTORY_DBID_TIME ON ADG_MONITOR_HISTORY(DB_ID, COLLECT_TIME DESC)
+    CREATE INDEX IDX_HISTORY_DBID_TIME ON ADG_MONITOR_HISTORY(DB_ID, COLLECT_TIME DESC) LOCAL
     """,
 
     """
-    CREATE INDEX IDX_HISTORY_TIME ON ADG_MONITOR_HISTORY(COLLECT_TIME DESC)
+    CREATE INDEX IDX_HISTORY_TIME ON ADG_MONITOR_HISTORY(COLLECT_TIME DESC) LOCAL
     """,
 ]
 
@@ -447,22 +485,25 @@ DDL_STATEMENTS_11G = [
     )
     """,
 
-    # ---- 3. 历史记录表 (Oracle 11g 使用序列+触发器) ----
+    # ---- 3. 历史记录表 (Oracle 11g 使用序列+触发器，按月分区) ----
     """
     CREATE SEQUENCE SEQ_ADG_HISTORY START WITH 1 INCREMENT BY 1 NOCACHE
     """,
 
-    """
+    f"""
     CREATE TABLE ADG_MONITOR_HISTORY (
         ID                    NUMBER         PRIMARY KEY,
         DB_ID                 VARCHAR2(64)   NOT NULL,
-        COLLECT_TIME          TIMESTAMP      DEFAULT SYSTIMESTAMP,
+        COLLECT_TIME          TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
         APPLY_LAG_SECONDS     NUMBER(10)     DEFAULT 0,
         TRANSPORT_LAG_SECONDS NUMBER(10)     DEFAULT 0,
         MRP_STATUS            VARCHAR2(32),
         HEALTH_STATUS         VARCHAR2(10),
         APPLY_LAG             VARCHAR2(64),
         TRANSPORT_LAG         VARCHAR2(64)
+    ) PARTITION BY RANGE (COLLECT_TIME)
+    (
+    {_gen_11g_partition_clauses()}
     )
     """,
 
@@ -484,15 +525,76 @@ DDL_STATEMENTS_11G = [
     )
     """,
 
-    # ---- 5. 索引 ----
+    # ---- 5. 索引 (本地分区索引) ----
     """
-    CREATE INDEX IDX_HISTORY_DBID_TIME ON ADG_MONITOR_HISTORY(DB_ID, COLLECT_TIME DESC)
+    CREATE INDEX IDX_HISTORY_DBID_TIME ON ADG_MONITOR_HISTORY(DB_ID, COLLECT_TIME DESC) LOCAL
     """,
 
     """
-    CREATE INDEX IDX_HISTORY_TIME ON ADG_MONITOR_HISTORY(COLLECT_TIME DESC)
+    CREATE INDEX IDX_HISTORY_TIME ON ADG_MONITOR_HISTORY(COLLECT_TIME DESC) LOCAL
     """,
 ]
+
+
+def drop_old_partitions(cursor, retention_days):
+    """通过 DROP PARTITION 清理过期分区。返回删除的分区数。
+    仅删除完全在保留期之前的整月分区，当前月 / 边界分区用 DELETE 补充清理。"""
+    import re
+    from datetime import datetime, timedelta
+    cutoff = datetime.now() - timedelta(days=retention_days)
+    cutoff_str = cutoff.strftime('%Y-%m-%d')
+
+    # 获取所有分区 (排除第 1 个分区 = 过渡点，保护它不被误删)
+    try:
+        cursor.execute("""
+            SELECT PARTITION_NAME, PARTITION_POSITION
+            FROM ALL_TAB_PARTITIONS
+            WHERE TABLE_NAME = 'ADG_MONITOR_HISTORY'
+              AND TABLE_OWNER = USER
+              AND PARTITION_POSITION > 1
+            ORDER BY PARTITION_POSITION
+        """)
+        all_parts = cursor.fetchall()
+    except Exception as e:
+        print(f"  [INFO] 无法查询分区信息: {e}")
+        return 0
+
+    if not all_parts:
+        return 0
+
+    # 不能 DROP 最后一个分区，留一个保底
+    safe_limit = len(all_parts)
+    dropped = 0
+    for i, (pname, ppos) in enumerate(all_parts):
+        if i >= safe_limit - 1:
+            break  # 保留最后一个分区，防 ORA-14083
+        try:
+            cursor.execute(f"""
+                SELECT HIGH_VALUE FROM ALL_TAB_PARTITIONS
+                WHERE TABLE_NAME = 'ADG_MONITOR_HISTORY'
+                  AND TABLE_OWNER = USER
+                  AND PARTITION_NAME = '{pname}'
+            """)
+            high_val_row = cursor.fetchone()
+            if not high_val_row:
+                continue
+
+            high_val_str = str(high_val_row[0])
+            # HIGH_VALUE 格式: TIMESTAMP' 2026-06-01 00:00:00'
+            if 'TIMESTAMP' in high_val_str.upper():
+                match = re.search(r"(\d{4}-\d{2}-\d{2})", high_val_str)
+                if match and match.group(1) <= cutoff_str:
+                    cursor.execute(f"ALTER TABLE ADG_MONITOR_HISTORY DROP PARTITION {pname} UPDATE GLOBAL INDEXES")
+                    dropped += 1
+                    print(f"  [INFO] DROP 过期分区: {pname}")
+        except Exception as e:
+            err_str = str(e)
+            if any(code in err_str for code in ('ORA-14078', 'ORA-14083', 'ORA-14758')):
+                break  # 不能再删了，停止尝试
+            else:
+                print(f"  [WARN] DROP 分区 {pname} 失败: {e}")
+
+    return dropped
 
 
 def init_database(use_11g=False):
@@ -1116,21 +1218,35 @@ def collect_all_standbys():
 
 
 def cleanup_old_history():
-    """清理过期历史数据"""
+    """清理过期历史数据（DROP PARTITION 整月 + DELETE 边界分区）"""
     retention_days = int(get_setting('history_retention_days', '30'))
     try:
         conn = get_local_connection()
         cursor = conn.cursor()
+
+        # 第1步: DROP 整月过期的分区
+        dropped = drop_old_partitions(cursor, retention_days)
+        if dropped > 0:
+            conn.commit()
+
+        # 第2步: DELETE 边界分区中部分过期的数据（始终执行）
         cursor.execute(
             "DELETE FROM ADG_MONITOR_HISTORY WHERE COLLECT_TIME < SYSTIMESTAMP - NUMTODSINTERVAL(:1, 'DAY')",
             [retention_days]
         )
         deleted = cursor.rowcount
         conn.commit()
+
+        if dropped > 0 or deleted > 0:
+            parts = []
+            if dropped > 0:
+                parts.append(f"DROPPED {dropped} partitions")
+            if deleted > 0:
+                parts.append(f"DELETED {deleted} rows")
+            print(f"[INFO] 历史清理: {', '.join(parts)} (保留{retention_days}天)")
+
         cursor.close()
         conn.close()
-        if deleted > 0:
-            print(f"[INFO] 清理了 {deleted} 条过期历史数据 (保留{retention_days}天)")
     except Exception as e:
         print(f"[WARN] 清理历史数据失败: {e}")
 
@@ -1948,23 +2064,38 @@ def test_alert():
 
 @app.route('/api/history/cleanup', methods=['POST'])
 def manual_cleanup():
-    """手动清理历史数据"""
+    """手动清理历史数据（DROP PARTITION 整月 + DELETE 边界分区）"""
     try:
         data = request.get_json() or {}
         days = int(data.get('retention_days', get_setting('history_retention_days', '30')))
 
         conn = get_local_connection()
         cursor = conn.cursor()
+
+        # 第1步: DROP 整月过期的分区
+        dropped = drop_old_partitions(cursor, days)
+        if dropped > 0:
+            conn.commit()
+
+        # 第2步: DELETE 边界分区中部分过期的数据（始终执行）
         cursor.execute(
             "DELETE FROM ADG_MONITOR_HISTORY WHERE COLLECT_TIME < SYSTIMESTAMP - NUMTODSINTERVAL(:1, 'DAY')",
             [days]
         )
         deleted = cursor.rowcount
         conn.commit()
+
+        parts = []
+        if dropped > 0:
+            parts.append(f'DROPPED {dropped} partitions')
+        if deleted > 0:
+            parts.append(f'DELETED {deleted} rows')
+        msg = f'已清理: {", ".join(parts)}' if parts else '无需清理'
+
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'deleted': deleted, 'message': f'已清理 {deleted} 条记录'})
+        return jsonify({'success': True, 'partition_dropped': dropped, 'rows_deleted': deleted, 'message': msg})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
